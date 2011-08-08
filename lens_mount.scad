@@ -1,5 +1,3 @@
-//translate([0, 0, 6.65]) rotate([88.6, 0, 0]) translate([0, 0, -118]) import_stl("showwx4.stl");
-
 opteka_r1 = 24.75/2;
 opteka_r2 = 41.35/2;
 
