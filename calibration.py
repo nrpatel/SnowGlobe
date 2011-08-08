@@ -5,7 +5,7 @@ import pickle
 import pygame
 from pygame.locals import *
 
-class CrystalCalibration(object):
+class SnowGlobeCalibration(object):
     def __init__(self, fullscreen, filename):
         self.filename = filename
         self.size = (848, 480)
@@ -173,6 +173,6 @@ if __name__ == '__main__':
     filename = None
     if len(sys.argv) > 1:
         filename = sys.argv[1]
-    crystal = CrystalCalibration(True, filename)
-    crystal.main()
+    snowglobe = SnowGlobeCalibration(True, filename)
+    snowglobe.main()
     
