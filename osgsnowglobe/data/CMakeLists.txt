@@ -1,0 +1,4 @@
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/snowglobe.earth
+    ${CMAKE_BINARY_DIR}/bin/snowglobe.earth COPYONLY)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/world.tif
+    ${CMAKE_BINARY_DIR}/bin/world.tif COPYONLY)
