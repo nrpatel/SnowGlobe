@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -O3 -Wall `sdl-config --cflags`
-LDFLAGS = -L/usr/X11R6/lib -lGL -lGLU -lglut `sdl-config --libs` -lSDL_image
+LDFLAGS = -L/usr/X11R6/lib -lGL -lGLU `sdl-config --libs` -lSDL_image
 
 .PHONY: all
 all: sosg

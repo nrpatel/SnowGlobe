@@ -15,13 +15,15 @@
 #include "SDL_image.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 static SDL_Surface *load_image(const char *filename)
 {
     SDL_Surface *surface = IMG_Load(filename);
     SDL_Surface *converted = NULL;
     if (surface) {
-        SDL_PixelFormat format = {NULL, 32, 4, 0, 0, 0, 0, 0, 8, 16, 24, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0, 255};
+        SDL_PixelFormat format = {NULL, 32, 4, 0, 0, 0, 0, 0, 8, 16, 24, 
+            0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0, 255};
         converted = SDL_ConvertSurface(surface, &format, SDL_SWSURFACE);
         SDL_FreeSurface(surface);
     }
@@ -50,9 +52,68 @@ static GLuint load_texture(SDL_Surface *surface)
     return texture;
 }
 
-int main(int argc, char *argv[])
+static char *load_file(char *filename)
 {
-    int w = 1440, h = 900;
+	char *buf = NULL;
+    FILE *fp;
+    int len;
+
+	if(!(fp = fopen(filename, "r"))) {
+		fprintf(stderr, "failed to open shader: %s\n", filename);
+		return NULL;
+	}
+	
+	fseek(fp, 0, SEEK_END);
+	len = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+	buf = malloc(len + 1);
+
+	len = fread(buf, 1, len, fp);
+	buf[len] = '\0';
+	fclose(fp);
+	
+	return buf;
+}
+
+static int load_shaders()
+{
+    GLuint program, vertex, fragment;
+    char *vbuf, *fbuf;
+    
+    vbuf = load_file("sosg.vert");
+    if (vbuf) {
+        fbuf = load_file("sosg.frag");
+        if (!fbuf) {
+            free(vbuf);
+            return 1;
+        }
+    } else {
+        return 1;
+    }
+    
+    vertex = glCreateShader(GL_VERTEX_SHADER);
+    fragment = glCreateShader(GL_FRAGMENT_SHADER);
+    
+    glShaderSource(vertex, 1, &vbuf, NULL);
+    glShaderSource(fragment, 1, &fbuf, NULL);
+    
+    free(vbuf);
+    free(fbuf);
+    
+    glCompileShader(vertex);
+    glCompileShader(fragment);
+    
+    program = glCreateProgram();
+    glAttachShader(program, vertex);
+    glAttachShader(program, fragment);
+    glLinkProgram(program);
+    glUseProgram(program);
+    
+    return 0;
+}   
+
+static int setup(int w, int h)
+{
     SDL_Surface *screen;
 
     // Slightly different SDL initialization
@@ -63,75 +124,82 @@ int main(int argc, char *argv[])
 
     SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 ); // *new*
 
-    screen = SDL_SetVideoMode( w, h, 32, SDL_OPENGL | SDL_FULLSCREEN ); // *changed*
-    if ( !screen ) {
+    screen = SDL_SetVideoMode(w, h, 32, SDL_OPENGL | SDL_FULLSCREEN); // *changed*
+    if (!screen) {
 		printf("Unable to set video mode: %s\n", SDL_GetError());
+		SDL_Quit();
 		return 1;
 	}
 	
     // Set the OpenGL state after creating the context with SDL_SetVideoMode
-
-	glClearColor( 0, 0, 0, 0 );
-	
-	glEnable( GL_TEXTURE_2D ); // Need this to display a texture
-
-    glViewport( 0, 0, w, h );
-
-    glMatrixMode( GL_PROJECTION );
+	glClearColor(0, 0, 0, 0);
+	glEnable(GL_TEXTURE_2D); // Need this to display a texture
+    glViewport(0, 0, w, h);
+    glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-
-    glOrtho( 0, w, h, 0, -1, 1 );
+    glOrtho(0, w, h, 0, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
     
-    glMatrixMode( GL_MODELVIEW );
-    glLoadIdentity();
+    return 0;
+}
+
+int main(int argc, char *argv[])
+{
+    int w = 1440, h = 900;
+    char *filename = "2048.jpg";
+
+    if (setup(w, h)) {
+        return 1;
+    }
     
     // Load the OpenGL texture
-
     GLuint texture; // Texture object handle
     SDL_Surface *surface; // Gives us the information to make the texture
     
-    if ((surface = load_image("2048.jpg"))) {
-    
-        // Check that the image's width is a power of 2
-        if ( (surface->w & (surface->w - 1)) != 0 ) {
-            printf("warning: image.bmp's width is not a power of 2\n");
-        }
-    
-        // Also check if the height is a power of 2
-        if ( (surface->h & (surface->h - 1)) != 0 ) {
-            printf("warning: image.bmp's height is not a power of 2\n");
+    if ((surface = load_image(filename))) {
+        // Check that the image's dimensions are a power of 2
+        if ((surface->w & (surface->w - 1)) != 0 ||
+            (surface->h & (surface->h - 1)) != 0) {
+            printf("warning: %s's dimensions (%d, %d) not a power of 2\n",
+                filename, surface->w, surface->h);
         }
     
         texture = load_texture(surface);
         SDL_FreeSurface(surface);
     } else {
-        printf("SDL could not load image.bmp: %s\n", SDL_GetError());
+        printf("SDL could not load %s: %s\n", filename, SDL_GetError());
+        SDL_Quit();
+        return 1;
+    }
+    
+    if (load_shaders()) {
         SDL_Quit();
         return 1;
     }
     
     // Clear the screen before drawing
-	glClear( GL_COLOR_BUFFER_BIT );
+	glClear(GL_COLOR_BUFFER_BIT);
     
     // Bind the texture to which subsequent calls refer to
-    glBindTexture( GL_TEXTURE_2D, texture );
+    glBindTexture(GL_TEXTURE_2D, texture);
 
-    glBegin( GL_QUADS );
+    glBegin(GL_QUADS);
         // Top-left vertex (corner)
-        glTexCoord2i( 0, 0 );
-        glVertex3f( 0, 0, 0 );
+        glTexCoord2i(0, 0);
+        glVertex3f(0, 0, 0);
     
         // Bottom-left vertex (corner)
-        glTexCoord2i( 1, 0 );
-        glVertex3f( w, 0, 0 );
+        glTexCoord2i(1, 0);
+        glVertex3f(w, 0, 0);
     
         // Bottom-right vertex (corner)
-        glTexCoord2i( 1, 1 );
-        glVertex3f( w, h, 0 );
+        glTexCoord2i(1, 1);
+        glVertex3f(w, h, 0);
     
         // Top-right vertex (corner)
-        glTexCoord2i( 0, 1 );
-        glVertex3f( 0, h, 0 );
+        glTexCoord2i(0, 1);
+        glVertex3f(0, h, 0);
     glEnd();
 	
     SDL_GL_SwapBuffers();
@@ -140,7 +208,7 @@ int main(int argc, char *argv[])
     SDL_Delay(3000);
     
     // Now we can delete the OpenGL texture and close down SDL
-    glDeleteTextures( 1, &texture );
+    glDeleteTextures(1, &texture);
     
     SDL_Quit();
     
