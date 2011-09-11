@@ -293,6 +293,8 @@ static void usage(sosg_p data)
     printf("        -x     X offset in pixels (%.1f)\n", data->center[0]);
     printf("        -y     Y offset in pixels (%.1f)\n", data->center[1]);
     printf("        -o     Lens offset in pixels (%.1f)\n\n", data->height);
+    printf("The left and right arrow keys can be used to change the rotation speed\n");
+    printf("of the globe, and p will stop the rotation.\n\n");
 }
 
 static void cleanup(sosg_p data)
