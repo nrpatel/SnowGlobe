@@ -20,6 +20,9 @@
 typedef struct sosg_struct {
     int w;
     int h;
+    float radius;
+    float height;
+    float center[2];
     SDL_Surface *screen;
     GLuint texture;
     GLuint program;
@@ -103,8 +106,8 @@ static int load_shaders(sosg_t *data)
     data->vertex = glCreateShader(GL_VERTEX_SHADER);
     data->fragment = glCreateShader(GL_FRAGMENT_SHADER);
     
-    glShaderSource(data->vertex, 1, &vbuf, NULL);
-    glShaderSource(data->fragment, 1, &fbuf, NULL);
+    glShaderSource(data->vertex, 1, (const GLchar **)&vbuf, NULL);
+    glShaderSource(data->fragment, 1, (const GLchar **)&fbuf, NULL);
     
     free(vbuf);
     free(fbuf);
@@ -124,6 +127,15 @@ static int load_shaders(sosg_t *data)
     glLinkProgram(data->program);
     glUseProgram(data->program);
     
+    GLint loc = glGetUniformLocation(data->program, "radius");
+    glUniform1f(loc, data->radius/(float)data->h);
+    loc = glGetUniformLocation(data->program, "height");
+    glUniform1f(loc, data->height/(float)data->h);
+    loc = glGetUniformLocation(data->program, "center");
+    glUniform2f(loc, data->center[0]/(float)data->w, data->center[1]/(float)data->h);
+    loc = glGetUniformLocation(data->program, "ratio");
+    glUniform1f(loc, (float)data->w/(float)data->h);
+    
     return 0;
 }   
 
@@ -137,7 +149,7 @@ static int setup(sosg_t *data)
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-    data->screen = SDL_SetVideoMode(data->w, data->h, 32, SDL_OPENGL | SDL_FULLSCREEN); // *changed*
+    data->screen = SDL_SetVideoMode(data->w, data->h, 32, SDL_OPENGL);//| SDL_FULLSCREEN);
     if (!data->screen) {
 		printf("Unable to set video mode: %s\n", SDL_GetError());
 		SDL_Quit();
@@ -165,13 +177,6 @@ static void update(sosg_t *data)
     // Bind the texture to which subsequent calls refer to
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, data->texture);
-
-    GLint loc = glGetUniformLocation(data->program, "globe_radius");
-    glUniform1f(loc, 0.5);
-    loc = glGetUniformLocation(data->program, "globe_offset");
-    glUniform1f(loc, 0.25);
-    loc = glGetUniformLocation(data->program, "globe_center");
-    glUniform2f(loc, 0.5, 0.5);
 
     glBegin(GL_QUADS);
         glTexCoord2i(0, 0);
@@ -201,8 +206,12 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    data->w = 1440;
-    data->h = 900;
+    data->w = 848;
+    data->h = 480;
+    data->radius = 378.0;
+    data->height = 370.0;
+    data->center[0] = 431.0;
+    data->center[1] = 210.0;
 
     if (setup(data)) {
         return 1;
