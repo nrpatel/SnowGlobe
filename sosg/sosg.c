@@ -273,11 +273,19 @@ static void update_display(sosg_p data)
     SDL_GL_SwapBuffers();
 }
 
-void usage()
+void usage(sosg_p data)
 {
     printf("Usage: sosg [OPTION] [FILE]\n");
-    printf("    -i     Display an image or slideshow (Default)\n");
-    printf("    -v     Display a video\n");
+    printf("    Input Data\n");
+    printf("        -i     Display an image or slideshow (Default)\n");
+    printf("        -v     Display a video\n");
+    printf("    Snow Globe Configuration\n");
+    printf("        -w     Width in pixels (%d)\n", data->w);
+    printf("        -h     Height in pixels (%d)\n", data->h);
+    printf("        -r     Radius in pixels (%.1f)\n", data->radius);
+    printf("        -x     X offset in pixels (%.1f)\n", data->center[0]);
+    printf("        -y     Y offset in pixels (%.1f)\n", data->center[1]);
+    printf("        -o     Lens offset in pixels (%.1f)\n", data->height);
 }
 
 int main(int argc, char *argv[])
@@ -291,7 +299,14 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    while ((c = getopt(argc, argv, "iv")) != -1) {
+    data->w = 848;
+    data->h = 480;
+    data->radius = 378.0;
+    data->height = 370.0;
+    data->center[0] = 431.0;
+    data->center[1] = 210.0;
+    
+    while ((c = getopt(argc, argv, "ivw:g:r:x:y:o:")) != -1) {
         switch (c) {
             case 'i':
                 data->mode = SOSG_IMAGES;
@@ -299,10 +314,28 @@ int main(int argc, char *argv[])
             case 'v':
                 data->mode = SOSG_VIDEO;
                 break;
+            case 'w':
+                data->w = atoi(optarg);
+                break;
+            case 'h':
+                data->h = atoi(optarg);
+                break;
+            case 'r':
+                data->radius = atof(optarg);
+                break;
+            case 'x':
+                data->center[0] = atof(optarg);
+                break;
+            case 'y':
+                data->center[1] = atof(optarg);
+                break;
+            case 'o':
+                data->height = atof(optarg);
+                break;
             case '?':
             default:
-                usage();
-                fprintf(stderr, "Error: unknown option %c\n", optopt);
+                usage(data);
+                fprintf(stderr, "Error: failed at option %c\n", optopt);
                 return 1;
         }
     }
@@ -311,17 +344,11 @@ int main(int argc, char *argv[])
         filename = argv[c];
     
     if (!filename) {
-        usage();
+        usage(data);
         fprintf(stderr, "Error: Missing filename or path.\n");
         return 1;
     }
     
-    data->w = 848;
-    data->h = 480;
-    data->radius = 378.0;
-    data->height = 370.0;
-    data->center[0] = 431.0;
-    data->center[1] = 210.0;
     data->rotation = PI;
 
     if (setup(data)) {
