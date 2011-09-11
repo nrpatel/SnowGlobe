@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #define TICK_INTERVAL 33
 #define PI 3.141592653589793
@@ -272,14 +273,46 @@ static void update_display(sosg_p data)
     SDL_GL_SwapBuffers();
 }
 
+void usage()
+{
+    printf("Usage: sosg [OPTION] [FILE]\n");
+    printf("    -i     Display an image or slideshow (Default)\n");
+    printf("    -v     Display a video\n");
+}
+
 int main(int argc, char *argv[])
 {
-    char *filename = "2048.jpg";
-//    char *filename = "china_quakes_2048.mp4";
-    sosg_p data = calloc(1, sizeof(sosg_t));
+    int c;
+    char *filename = NULL;
     
+    sosg_p data = calloc(1, sizeof(sosg_t));
     if (!data) {
         printf("Could not allocate data\n");
+        return 1;
+    }
+    
+    while ((c = getopt(argc, argv, "iv")) != -1) {
+        switch (c) {
+            case 'i':
+                data->mode = SOSG_IMAGES;
+                break;
+            case 'v':
+                data->mode = SOSG_VIDEO;
+                break;
+            case '?':
+            default:
+                usage();
+                fprintf(stderr, "Error: unknown option %c\n", optopt);
+                return 1;
+        }
+    }
+    
+    for (c = optind; c < argc; c++)
+        filename = argv[c];
+    
+    if (!filename) {
+        usage();
+        fprintf(stderr, "Error: Missing filename or path.\n");
         return 1;
     }
     
@@ -290,7 +323,6 @@ int main(int argc, char *argv[])
     data->center[0] = 431.0;
     data->center[1] = 210.0;
     data->rotation = PI;
-    data->mode = SOSG_IMAGES;
 
     if (setup(data)) {
         return 1;
