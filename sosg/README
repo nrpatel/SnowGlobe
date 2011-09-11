@@ -1,0 +1,50 @@
+sosg is  a simple viewer for NOAA Science on a Sphere datasets
+on Snow Globe, a low cost, open source, DIY spherical display.
+SOS Datasets available at: http://sos.noaa.gov
+Snow Globe information at: http://eclecti.cc
+
+USAGE
+==============================================================================
+
+sosg [OPTION] [FILE]
+
+    Input Data
+        -i     Display an image or slideshow (Default)
+        -v     Display a video
+
+    Snow Globe Configuration
+        -f     Fullscreen
+        -w     Display width in pixels (848)
+        -h     Display height in pixels (480)
+        -r     Radius in pixels (378.0)
+        -x     X offset in pixels (431.0)
+        -y     Y offset in pixels (210.0)
+        -o     Lens offset in pixels (370.0)
+
+The left and right arrow keys can be used to change the rotation speed
+of the globe, and p will stop the rotation.
+
+DEPENDENCIES
+==============================================================================
+
+SDL 1.2
+SDL image 1.2
+OpenGL 2.1
+libvlc 1.1.1
+
+LICENSE
+==============================================================================
+
+Copyright (c) 2011, Nirav Patel <nrp@eclecti.cc>
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.

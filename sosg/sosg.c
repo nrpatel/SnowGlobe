@@ -235,6 +235,7 @@ static void update_media(sosg_p data)
     }
 
     if (surface) {
+        // TODO: Support arbitrary resolution images
         // Check that the image's dimensions are a power of 2
         if ((surface->w & (surface->w - 1)) != 0 ||
             (surface->h & (surface->h - 1)) != 0) {
