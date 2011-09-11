@@ -34,6 +34,7 @@ enum sosg_mode {
 typedef struct sosg_struct {
     int w;
     int h;
+    int fullscreen;
     int texres[2];
     float radius;
     float height;
@@ -146,7 +147,8 @@ static int setup(sosg_p data)
     
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-    data->screen = SDL_SetVideoMode(data->w, data->h, 32, SDL_OPENGL);//| SDL_FULLSCREEN);
+    int flags = SDL_OPENGL | (data->fullscreen ? SDL_FULLSCREEN : 0);
+    data->screen = SDL_SetVideoMode(data->w, data->h, 32, flags);
     if (!data->screen) {
 		printf("Unable to set video mode: %s\n", SDL_GetError());
 		SDL_Quit();
@@ -284,8 +286,9 @@ void usage(sosg_p data)
     printf("        -i     Display an image or slideshow (Default)\n");
     printf("        -v     Display a video\n\n");
     printf("    Snow Globe Configuration\n");
-    printf("        -w     Width in pixels (%d)\n", data->w);
-    printf("        -h     Height in pixels (%d)\n", data->h);
+    printf("        -f     Fullscreen\n");
+    printf("        -w     Display width in pixels (%d)\n", data->w);
+    printf("        -h     Display height in pixels (%d)\n", data->h);
     printf("        -r     Radius in pixels (%.1f)\n", data->radius);
     printf("        -x     X offset in pixels (%.1f)\n", data->center[0]);
     printf("        -y     Y offset in pixels (%.1f)\n", data->center[1]);
@@ -310,13 +313,16 @@ int main(int argc, char *argv[])
     data->center[0] = 431.0;
     data->center[1] = 210.0;
     
-    while ((c = getopt(argc, argv, "ivw:g:r:x:y:o:")) != -1) {
+    while ((c = getopt(argc, argv, "ivfw:g:r:x:y:o:")) != -1) {
         switch (c) {
             case 'i':
                 data->mode = SOSG_IMAGES;
                 break;
             case 'v':
                 data->mode = SOSG_VIDEO;
+                break;
+            case 'f':
+                data->fullscreen = 1;
                 break;
             case 'w':
                 data->w = atoi(optarg);

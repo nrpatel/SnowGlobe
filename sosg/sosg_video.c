@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <vlc/vlc.h>
 
-#define VIDEOWIDTH 1024
-#define VIDEOHEIGHT 512
+#define VIDEOWIDTH 2048
+#define VIDEOHEIGHT 1024
 
 typedef struct sosg_video_struct {
     char *path;
@@ -63,7 +63,7 @@ sosg_video_p sosg_video_init(const char *path)
         video->mp = libvlc_media_player_new_from_media(video->m);
         
         libvlc_video_set_callbacks(video->mp, lock, unlock, display, video);
-        libvlc_video_set_format(video->mp, "RV32", VIDEOWIDTH, VIDEOHEIGHT, VIDEOWIDTH*2);
+        libvlc_video_set_format(video->mp, "RV32", VIDEOWIDTH, VIDEOHEIGHT, VIDEOWIDTH*4);
         libvlc_media_player_play(video->mp);
     }
 
