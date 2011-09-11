@@ -18,19 +18,25 @@
 #include <stdlib.h>
 
 #define TICK_INTERVAL 16
+#define PI 3.141592653589793
+#define ROTATION_INTERVAL PI/(120.0*(1000.0/TICK_INTERVAL))
 
 typedef struct sosg_struct {
     int w;
     int h;
+    int texres[2];
     float radius;
     float height;
     float center[2];
+    float rotation;
+    float drotation;
     Uint32 time;
     SDL_Surface *screen;
     GLuint texture;
     GLuint program;
     GLuint vertex;
     GLuint fragment;
+    GLuint lrotation;
 } sosg_t;
 
 static SDL_Surface *load_image(const char *filename)
@@ -132,6 +138,9 @@ static int load_shaders(sosg_t *data)
     glUniform2f(loc, data->center[0]/(float)data->w, data->center[1]/(float)data->h);
     loc = glGetUniformLocation(data->program, "ratio");
     glUniform1f(loc, (float)data->w/(float)data->h);
+    loc = glGetUniformLocation(data->program, "texres");
+    glUniform2f(loc, 1.0/(float)data->texres[0], 1.0/(float)data->texres[1]);
+    data->lrotation = glGetUniformLocation(data->program, "rotation");
     
     return 0;
 }   
@@ -145,6 +154,7 @@ static int setup(sosg_t *data)
     }
     
     data->time = SDL_GetTicks();
+    SDL_EnableKeyRepeat(250, TICK_INTERVAL);
     
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
@@ -176,28 +186,47 @@ static void timer_update(sosg_t *data)
         SDL_Delay(data->time - now);
     }
 
-    data->time = now + TICK_INTERVAL;
+    while (data->time <= now) {
+        data->time += TICK_INTERVAL;
+    }
 }
 
 static int handle_events(sosg_t *data)
 {
     SDL_Event event;
-    SDL_WaitEvent(&event);
-
-    switch (event.type) {
-        case SDL_KEYDOWN:
-            if (event.key.keysym.sym == SDLK_ESCAPE) {
+    
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+            case SDL_KEYDOWN:
+                switch (event.key.keysym.sym) {
+                    case SDLK_ESCAPE:
+                        return -1;
+                    case SDLK_LEFT:
+                        data->drotation += ROTATION_INTERVAL;
+                        break;
+                    case SDLK_RIGHT:
+                        data->drotation -= ROTATION_INTERVAL;
+                        break;
+                    case SDLK_p:
+                        data->drotation = 0.0;
+                    default:
+                        break;
+                }
+                break;
+            case SDL_QUIT:
                 return -1;
-            }
-            break;
-        case SDL_QUIT:
-            return -1;
+            default:
+                break;
+        }
     }
+    
     return 0;
 }
 
 static void update(sosg_t *data)
 {
+    glUniform1f(data->lrotation, data->rotation);
+
     // Clear the screen before drawing
 	glClear(GL_COLOR_BUFFER_BIT);
     
@@ -239,6 +268,7 @@ int main(int argc, char *argv[])
     data->height = 370.0;
     data->center[0] = 431.0;
     data->center[1] = 210.0;
+    data->rotation = PI;
 
     if (setup(data)) {
         return 1;
@@ -253,6 +283,8 @@ int main(int argc, char *argv[])
         }
     
         data->texture = load_texture(surface);
+        data->texres[0] = surface->w;
+        data->texres[1] = surface->h;
         SDL_FreeSurface(surface);
     } else {
         printf("SDL could not load %s: %s\n", filename, SDL_GetError());
@@ -268,6 +300,7 @@ int main(int argc, char *argv[])
     while (handle_events(data) != -1) {
         update(data);
         timer_update(data);
+        data->rotation += data->drotation;
     }
     
     // Now we can delete the OpenGL texture and close down SDL
