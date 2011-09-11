@@ -1,11 +1,12 @@
 /* Science on a Snow Globe
- * by Nirav Patel <nrp@eclecti.cc> http://eclecti.cc
+ * by Nirav Patel <nrp@eclecti.cc>
  *
  * An extremely basic take on supporting Science On a Sphere datasets on
  * Snow Globe, a low cost DIY spherical display.
- * Datasets and SOS information available at http://sos.noaa.gov/
+ * Datasets and SOS information available at http://sos.noaa.gov
+ * Snow Globe information at http://eclecti.cc
  *
- * Parts are based on/copied from some public domain code from
+ * Parts are copied from some public domain code from
  * Kyle Foley: http://gpwiki.org/index.php/SDL:Tutorials:Using_SDL_with_OpenGL
  * John Tsiombikas: http://nuclear.mutantstargoat.com/articles/sdr_fract/
  */
@@ -14,10 +15,12 @@
 #include "SDL_opengl.h"
 #include "SDL_image.h"
 
+#include "sosg_image.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 
-#define TICK_INTERVAL 16
+#define TICK_INTERVAL 33
 #define PI 3.141592653589793
 #define ROTATION_INTERVAL PI/(120.0*(1000.0/TICK_INTERVAL))
 
@@ -31,47 +34,23 @@ typedef struct sosg_struct {
     float rotation;
     float drotation;
     Uint32 time;
+    sosg_image_p images;
     SDL_Surface *screen;
     GLuint texture;
     GLuint program;
     GLuint vertex;
     GLuint fragment;
     GLuint lrotation;
-} sosg_t;
+} sosg_t, *sosg_p;
 
-static SDL_Surface *load_image(const char *filename)
+static void load_texture(sosg_p data, SDL_Surface *surface)
 {
-    SDL_Surface *surface = IMG_Load(filename);
-    SDL_Surface *converted = NULL;
-    if (surface) {
-        SDL_PixelFormat format = {NULL, 32, 4, 0, 0, 0, 0, 0, 8, 16, 24, 
-            0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0, 255};
-        converted = SDL_ConvertSurface(surface, &format, SDL_SWSURFACE);
-        SDL_FreeSurface(surface);
-    }
-
-    return converted;
-}
-
-static GLuint load_texture(SDL_Surface *surface)
-{
-    GLuint texture;
-    
-    // Have OpenGL generate a texture object handle for us
-    glGenTextures(1, &texture);
-
     // Bind the texture object
-    glBindTexture(GL_TEXTURE_2D, texture);
-    
-    // Set the texture's stretching properties
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, data->texture);
     
     // Edit the texture object's image data using the information SDL_Surface gives us
     glTexImage2D(GL_TEXTURE_2D, 0, 4, surface->w, surface->h, 0, 
                   GL_RGBA, GL_UNSIGNED_BYTE, surface->pixels);
-    
-    return texture;
 }
 
 static char *load_file(char *filename)
@@ -97,7 +76,7 @@ static char *load_file(char *filename)
 	return buf;
 }
 
-static int load_shaders(sosg_t *data)
+static int load_shaders(sosg_p data)
 {
     char *vbuf, *fbuf;
     
@@ -145,7 +124,7 @@ static int load_shaders(sosg_t *data)
     return 0;
 }   
 
-static int setup(sosg_t *data)
+static int setup(sosg_p data)
 {
     // Slightly different SDL initialization
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -175,10 +154,20 @@ static int setup(sosg_t *data)
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     
+    // Have OpenGL generate a texture object handle for us
+    glGenTextures(1, &data->texture);
+    
+    // Bind the texture object
+    glBindTexture(GL_TEXTURE_2D, data->texture);
+    
+    // Set the texture's stretching properties
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
     return 0;
 }
 
-static void timer_update(sosg_t *data)
+static void timer_update(sosg_p data)
 {
     Uint32 now = SDL_GetTicks();
 
@@ -191,7 +180,7 @@ static void timer_update(sosg_t *data)
     }
 }
 
-static int handle_events(sosg_t *data)
+static int handle_events(sosg_p data)
 {
     SDL_Event event;
     
@@ -223,7 +212,25 @@ static int handle_events(sosg_t *data)
     return 0;
 }
 
-static void update(sosg_t *data)
+static void update_media(sosg_p data)
+{
+    SDL_Surface *surface;
+
+    if ((surface = sosg_image_update(data->images))) {
+        // Check that the image's dimensions are a power of 2
+        if ((surface->w & (surface->w - 1)) != 0 ||
+            (surface->h & (surface->h - 1)) != 0) {
+            printf("warning: dimensions (%d, %d) not a power of 2\n",
+                surface->w, surface->h);
+        }
+    
+        load_texture(data, surface);
+        data->texres[0] = surface->w;
+        data->texres[1] = surface->h;
+    }
+}
+
+static void update_display(sosg_p data)
 {
     glUniform1f(data->lrotation, data->rotation);
 
@@ -254,8 +261,7 @@ static void update(sosg_t *data)
 int main(int argc, char *argv[])
 {
     char *filename = "2048.jpg";
-    SDL_Surface *surface;
-    sosg_t *data = calloc(1, sizeof(sosg_t));
+    sosg_p data = calloc(1, sizeof(sosg_t));
     
     if (!data) {
         printf("Could not allocate data\n");
@@ -274,23 +280,8 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    if ((surface = load_image(filename))) {
-        // Check that the image's dimensions are a power of 2
-        if ((surface->w & (surface->w - 1)) != 0 ||
-            (surface->h & (surface->h - 1)) != 0) {
-            printf("warning: %s's dimensions (%d, %d) not a power of 2\n",
-                filename, surface->w, surface->h);
-        }
-    
-        data->texture = load_texture(surface);
-        data->texres[0] = surface->w;
-        data->texres[1] = surface->h;
-        SDL_FreeSurface(surface);
-    } else {
-        printf("SDL could not load %s: %s\n", filename, SDL_GetError());
-        SDL_Quit();
-        return 1;
-    }
+    data->images = sosg_image_init(filename);
+    sosg_image_get_resolution(data->images, data->texres);
     
     if (load_shaders(data)) {
         SDL_Quit();
@@ -298,11 +289,13 @@ int main(int argc, char *argv[])
     }
     
     while (handle_events(data) != -1) {
-        update(data);
+        update_media(data);
+        update_display(data);
         timer_update(data);
         data->rotation += data->drotation;
     }
     
+    sosg_image_destroy(data->images);
     // Now we can delete the OpenGL texture and close down SDL
     glDeleteTextures(1, &data->texture);
     SDL_Quit();
