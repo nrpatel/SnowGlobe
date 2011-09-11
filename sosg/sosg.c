@@ -21,10 +21,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <math.h>
 
 #define TICK_INTERVAL 33
-#define PI 3.141592653589793
-#define ROTATION_INTERVAL PI/(120.0*(1000.0/TICK_INTERVAL))
+#define ROTATION_INTERVAL M_PI/(120.0*(1000.0/TICK_INTERVAL))
+#define ROTATION_CONSTANT (float)30.5*ROTATION_INTERVAL
+#define CLOSE_ENOUGH(a, b) (fabs(a - b) < ROTATION_INTERVAL/2)
 
 enum sosg_mode {
     SOSG_IMAGES,
@@ -39,8 +41,8 @@ typedef struct sosg_struct {
     float radius;
     float height;
     float center[2];
-    float rotation;
-    float drotation;
+    float rotation[2];
+    float drotation[2];
     Uint32 time;
     int mode;
     sosg_image_p images;
@@ -203,13 +205,59 @@ static int handle_events(sosg_p data)
                     case SDLK_ESCAPE:
                         return -1;
                     case SDLK_LEFT:
-                        data->drotation += ROTATION_INTERVAL;
+                        if (event.key.keysym.mod & KMOD_SHIFT)
+                            data->drotation[0] += ROTATION_INTERVAL;
+                        else
+                            data->drotation[0] = ROTATION_CONSTANT;
                         break;
                     case SDLK_RIGHT:
-                        data->drotation -= ROTATION_INTERVAL;
+                        if (event.key.keysym.mod & KMOD_SHIFT)
+                            data->drotation[0] -= ROTATION_INTERVAL;
+                        else
+                            data->drotation[0] = -ROTATION_CONSTANT;
+                        break;
+                    case SDLK_UP:
+                        if (event.key.keysym.mod & KMOD_SHIFT)
+                            data->drotation[1] += ROTATION_INTERVAL;
+                        else
+                            data->drotation[1] = ROTATION_CONSTANT;
+                        break;
+                    case SDLK_DOWN:
+                        if (event.key.keysym.mod & KMOD_SHIFT)
+                            data->drotation[1] -= ROTATION_INTERVAL;
+                        else
+                            data->drotation[1] = -ROTATION_CONSTANT;
                         break;
                     case SDLK_p:
-                        data->drotation = 0.0;
+                        data->drotation[0] = 0.0;
+                        data->drotation[1] = 0.0;
+                        break;
+                    case SDLK_r:
+                        data->rotation[0] = M_PI;
+                        data->rotation[1] = 0.0;
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case SDL_KEYUP:
+                switch (event.key.keysym.sym) {
+                    case SDLK_LEFT:
+                        if (CLOSE_ENOUGH(data->drotation[0],ROTATION_CONSTANT))
+                            data->drotation[0] = 0.0;
+                        break;
+                    case SDLK_RIGHT:
+                        if (CLOSE_ENOUGH(data->drotation[0],-ROTATION_CONSTANT))
+                            data->drotation[0] = 0.0;
+                        break;
+                    case SDLK_UP:
+                        if (CLOSE_ENOUGH(data->drotation[1],ROTATION_CONSTANT))
+                            data->drotation[1] = 0.0;
+                        break;
+                    case SDLK_DOWN:
+                        if (CLOSE_ENOUGH(data->drotation[1],-ROTATION_CONSTANT))
+                            data->drotation[1] = 0.0;
+                        break;
                     default:
                         break;
                 }
@@ -249,7 +297,7 @@ static void update_media(sosg_p data)
 
 static void update_display(sosg_p data)
 {
-    glUniform1f(data->lrotation, data->rotation);
+    glUniform2f(data->lrotation, data->rotation[0], data->rotation[1]);
 
     // Clear the screen before drawing
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -293,8 +341,9 @@ static void usage(sosg_p data)
     printf("        -x     X offset in pixels (%.1f)\n", data->center[0]);
     printf("        -y     Y offset in pixels (%.1f)\n", data->center[1]);
     printf("        -o     Lens offset in pixels (%.1f)\n\n", data->height);
-    printf("The left and right arrow keys can be used to change the rotation speed\n");
-    printf("of the globe, and p will stop the rotation.\n\n");
+    printf("The left and right arrow keys can be used to rotate the sphere.\n");
+    printf("Holding shift while using the arrows changes rotation speed.\n");
+    printf("p will stop the rotation and r resets the angle.\n\n");
 }
 
 static void cleanup(sosg_p data)
@@ -326,7 +375,8 @@ int main(int argc, char *argv[])
     data->height = 370.0;
     data->center[0] = 431.0;
     data->center[1] = 210.0;
-    data->rotation = PI;
+    data->rotation[0] = M_PI;
+    data->rotation[1] = 0.0;
     
     while ((c = getopt(argc, argv, "ivfw:g:r:x:y:o:")) != -1) {
         switch (c) {
@@ -397,7 +447,8 @@ int main(int argc, char *argv[])
         update_media(data);
         update_display(data);
         timer_update(data);
-        data->rotation += data->drotation;
+        data->rotation[0] += data->drotation[0];
+        data->rotation[1] += data->drotation[1];
     }
     
     cleanup(data);

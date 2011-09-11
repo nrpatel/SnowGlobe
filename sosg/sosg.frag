@@ -2,7 +2,7 @@ uniform sampler2D tex;
 uniform float radius;
 uniform float height;
 uniform float ratio;
-uniform float rotation;
+uniform vec2 rotation;
 uniform vec2 center;
 uniform vec2 texres;
 
@@ -23,7 +23,8 @@ void main(void)
         float h = d*SIN_PI_4/radius;
         float theta = asin(height*h)+asin(h);
         float phi = atan(offset[0],offset[1]);
-        vec2 fisheye = vec2((rotation-phi)/PI2, theta/PI_2);
+        // TODO: rotation in both theta and phi
+        vec2 fisheye = vec2((rotation[0]-phi)/PI2, theta/PI_2);
         
         // A really naive filter to reduce sparkling
         color += texture2D(tex, fisheye + vec2(-texres[0], 0.0));

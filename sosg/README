@@ -21,8 +21,9 @@ sosg [OPTION] [FILE]
         -y     Y offset in pixels (210.0)
         -o     Lens offset in pixels (370.0)
 
-The left and right arrow keys can be used to change the rotation speed
-of the globe, and p will stop the rotation.
+The left and right arrow keys can be used to rotate the sphere.
+Holding shift while using the arrows changes rotation speed.
+p will stop the rotation and r resets the angle.
 
 DEPENDENCIES
 ==============================================================================
