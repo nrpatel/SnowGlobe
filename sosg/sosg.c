@@ -17,12 +17,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define TICK_INTERVAL 16
+
 typedef struct sosg_struct {
     int w;
     int h;
     float radius;
     float height;
     float center[2];
+    Uint32 time;
     SDL_Surface *screen;
     GLuint texture;
     GLuint program;
@@ -114,12 +117,6 @@ static int load_shaders(sosg_t *data)
     
     glCompileShader(data->vertex);
     glCompileShader(data->fragment);
-    GLint status;
-    GLsizei len;
-    GLchar log[1024];
-    glGetShaderiv(data->fragment, GL_COMPILE_STATUS, &status);
-    glGetShaderInfoLog(data->fragment, 1024, &len, log);
-    printf("fragment shader %d\n %s\n",status,log);
     
     data->program = glCreateProgram();
     glAttachShader(data->program, data->vertex);
@@ -130,7 +127,7 @@ static int load_shaders(sosg_t *data)
     GLint loc = glGetUniformLocation(data->program, "radius");
     glUniform1f(loc, data->radius/(float)data->h);
     loc = glGetUniformLocation(data->program, "height");
-    glUniform1f(loc, data->height/(float)data->h);
+    glUniform1f(loc, data->height/data->radius);
     loc = glGetUniformLocation(data->program, "center");
     glUniform2f(loc, data->center[0]/(float)data->w, data->center[1]/(float)data->h);
     loc = glGetUniformLocation(data->program, "ratio");
@@ -146,7 +143,9 @@ static int setup(sosg_t *data)
         printf("Unable to initialize SDL: %s\n", SDL_GetError());
         return 1;
     }
-
+    
+    data->time = SDL_GetTicks();
+    
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
     data->screen = SDL_SetVideoMode(data->w, data->h, 32, SDL_OPENGL);//| SDL_FULLSCREEN);
@@ -166,6 +165,34 @@ static int setup(sosg_t *data)
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     
+    return 0;
+}
+
+static void timer_update(sosg_t *data)
+{
+    Uint32 now = SDL_GetTicks();
+
+    if (data->time > now) {
+        SDL_Delay(data->time - now);
+    }
+
+    data->time = now + TICK_INTERVAL;
+}
+
+static int handle_events(sosg_t *data)
+{
+    SDL_Event event;
+    SDL_WaitEvent(&event);
+
+    switch (event.type) {
+        case SDL_KEYDOWN:
+            if (event.key.keysym.sym == SDLK_ESCAPE) {
+                return -1;
+            }
+            break;
+        case SDL_QUIT:
+            return -1;
+    }
     return 0;
 }
 
@@ -238,14 +265,13 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    update(data);
-    
-    // Wait for 3 seconds to give us a chance to see the image
-    SDL_Delay(3000);
+    while (handle_events(data) != -1) {
+        update(data);
+        timer_update(data);
+    }
     
     // Now we can delete the OpenGL texture and close down SDL
     glDeleteTextures(1, &data->texture);
-    
     SDL_Quit();
     
 	return 0;

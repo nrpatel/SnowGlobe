@@ -17,7 +17,7 @@ void main(void)
         gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
     } else {
         float h = d*SIN_PI_4/radius;
-        float theta = asin(height*h/radius)+asin(h);
+        float theta = asin(height*h)+asin(h);
         float phi = atan(offset[0],offset[1]);
         vec2 fisheye = vec2((PI-phi)/PI2, theta/PI_2);
 	    gl_FragColor = texture2D(tex, fisheye);
