@@ -144,6 +144,7 @@ static int setup(sosg_p data)
     
     data->time = SDL_GetTicks();
     SDL_EnableKeyRepeat(250, TICK_INTERVAL);
+    SDL_ShowCursor(SDL_DISABLE);
     
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 

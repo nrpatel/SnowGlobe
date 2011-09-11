@@ -2,11 +2,11 @@
 #include <stdio.h>
 #include <vlc/vlc.h>
 
+// TODO: Make the size dynamic based on input resolution
 #define VIDEOWIDTH 2048
 #define VIDEOHEIGHT 1024
 
 typedef struct sosg_video_struct {
-    char *path;
     SDL_Surface *buffer;
     SDL_Surface *surface;
     SDL_mutex *mutex;
@@ -42,7 +42,6 @@ sosg_video_p sosg_video_init(const char *path)
 {
     sosg_video_p video = calloc(1, sizeof(sosg_video_t));
     if (video) {
-        if (path) video->path = strdup(path);
         video->mutex = SDL_CreateMutex();
             
         video->buffer = SDL_CreateRGBSurface(SDL_SWSURFACE, VIDEOWIDTH, VIDEOHEIGHT, 32, 
@@ -53,13 +52,13 @@ sosg_video_p sosg_video_init(const char *path)
         char const *vlc_argv[] =
         {
             "--input-repeat=-1",
-            "--no-video-title-show",
+            //"--no-video-title-show",
             "--no-audio", /* skip any audio track */
             "--no-xlib", /* tell VLC to not use Xlib */
         };        
         int vlc_argc = sizeof(vlc_argv) / sizeof(*vlc_argv);
         video->libvlc = libvlc_new(vlc_argc, vlc_argv);
-        video->m = libvlc_media_new_path(video->libvlc, video->path);
+        video->m = libvlc_media_new_path(video->libvlc, path);
         video->mp = libvlc_media_player_new_from_media(video->m);
         
         libvlc_video_set_callbacks(video->mp, lock, unlock, display, video);
@@ -79,7 +78,6 @@ void sosg_video_destroy(sosg_video_p video)
             libvlc_media_player_release(video->mp);
         }
         if (video->libvlc) libvlc_release(video->libvlc);
-        if (video->path) free(video->path);
         if (video->buffer) SDL_FreeSurface(video->buffer);
         if (video->mutex) SDL_DestroyMutex(video->mutex);
         free(video);
