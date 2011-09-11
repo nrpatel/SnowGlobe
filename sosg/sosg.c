@@ -17,6 +17,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+typedef struct sosg_struct {
+    int w;
+    int h;
+    SDL_Surface *screen;
+    GLuint texture;
+    GLuint program;
+    GLuint vertex;
+    GLuint fragment;
+} sosg_t;
+
 static SDL_Surface *load_image(const char *filename)
 {
     SDL_Surface *surface = IMG_Load(filename);
@@ -75,9 +85,8 @@ static char *load_file(char *filename)
 	return buf;
 }
 
-static int load_shaders()
+static int load_shaders(sosg_t *data)
 {
-    GLuint program, vertex, fragment;
     char *vbuf, *fbuf;
     
     vbuf = load_file("sosg.vert");
@@ -91,41 +100,45 @@ static int load_shaders()
         return 1;
     }
     
-    vertex = glCreateShader(GL_VERTEX_SHADER);
-    fragment = glCreateShader(GL_FRAGMENT_SHADER);
+    data->vertex = glCreateShader(GL_VERTEX_SHADER);
+    data->fragment = glCreateShader(GL_FRAGMENT_SHADER);
     
-    glShaderSource(vertex, 1, &vbuf, NULL);
-    glShaderSource(fragment, 1, &fbuf, NULL);
+    glShaderSource(data->vertex, 1, &vbuf, NULL);
+    glShaderSource(data->fragment, 1, &fbuf, NULL);
     
     free(vbuf);
     free(fbuf);
     
-    glCompileShader(vertex);
-    glCompileShader(fragment);
+    glCompileShader(data->vertex);
+    glCompileShader(data->fragment);
+    GLint status;
+    GLsizei len;
+    GLchar log[1024];
+    glGetShaderiv(data->fragment, GL_COMPILE_STATUS, &status);
+    glGetShaderInfoLog(data->fragment, 1024, &len, log);
+    printf("fragment shader %d\n %s\n",status,log);
     
-    program = glCreateProgram();
-    glAttachShader(program, vertex);
-    glAttachShader(program, fragment);
-    glLinkProgram(program);
-    glUseProgram(program);
+    data->program = glCreateProgram();
+    glAttachShader(data->program, data->vertex);
+    glAttachShader(data->program, data->fragment);
+    glLinkProgram(data->program);
+    glUseProgram(data->program);
     
     return 0;
 }   
 
-static int setup(int w, int h)
+static int setup(sosg_t *data)
 {
-    SDL_Surface *screen;
-
     // Slightly different SDL initialization
-    if ( SDL_Init(SDL_INIT_VIDEO) != 0 ) {
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         printf("Unable to initialize SDL: %s\n", SDL_GetError());
         return 1;
     }
 
-    SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 ); // *new*
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-    screen = SDL_SetVideoMode(w, h, 32, SDL_OPENGL | SDL_FULLSCREEN); // *changed*
-    if (!screen) {
+    data->screen = SDL_SetVideoMode(data->w, data->h, 32, SDL_OPENGL | SDL_FULLSCREEN); // *changed*
+    if (!data->screen) {
 		printf("Unable to set video mode: %s\n", SDL_GetError());
 		SDL_Quit();
 		return 1;
@@ -134,28 +147,66 @@ static int setup(int w, int h)
     // Set the OpenGL state after creating the context with SDL_SetVideoMode
 	glClearColor(0, 0, 0, 0);
 	glEnable(GL_TEXTURE_2D); // Need this to display a texture
-    glViewport(0, 0, w, h);
+    glViewport(0, 0, data->w, data->h);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0, w, h, 0, -1, 1);
+    glOrtho(0, data->w, data->h, 0, -1, 1);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     
     return 0;
 }
 
+static void update(sosg_t *data)
+{
+    // Clear the screen before drawing
+	glClear(GL_COLOR_BUFFER_BIT);
+    
+    // Bind the texture to which subsequent calls refer to
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, data->texture);
+
+    GLint loc = glGetUniformLocation(data->program, "globe_radius");
+    glUniform1f(loc, 0.5);
+    loc = glGetUniformLocation(data->program, "globe_offset");
+    glUniform1f(loc, 0.25);
+    loc = glGetUniformLocation(data->program, "globe_center");
+    glUniform2f(loc, 0.5, 0.5);
+
+    glBegin(GL_QUADS);
+        glTexCoord2i(0, 0);
+        glVertex3f(0, 0, 0);
+    
+        glTexCoord2i(1, 0);
+        glVertex3f(data->w, 0, 0);
+    
+        glTexCoord2i(1, 1);
+        glVertex3f(data->w, data->h, 0);
+    
+        glTexCoord2i(0, 1);
+        glVertex3f(0, data->h, 0);
+    glEnd();
+	
+    SDL_GL_SwapBuffers();
+}
+
 int main(int argc, char *argv[])
 {
-    int w = 1440, h = 900;
     char *filename = "2048.jpg";
-
-    if (setup(w, h)) {
+    SDL_Surface *surface;
+    sosg_t *data = calloc(1, sizeof(sosg_t));
+    
+    if (!data) {
+        printf("Could not allocate data\n");
         return 1;
     }
     
-    // Load the OpenGL texture
-    GLuint texture; // Texture object handle
-    SDL_Surface *surface; // Gives us the information to make the texture
+    data->w = 1440;
+    data->h = 900;
+
+    if (setup(data)) {
+        return 1;
+    }
     
     if ((surface = load_image(filename))) {
         // Check that the image's dimensions are a power of 2
@@ -165,7 +216,7 @@ int main(int argc, char *argv[])
                 filename, surface->w, surface->h);
         }
     
-        texture = load_texture(surface);
+        data->texture = load_texture(surface);
         SDL_FreeSurface(surface);
     } else {
         printf("SDL could not load %s: %s\n", filename, SDL_GetError());
@@ -173,42 +224,18 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    if (load_shaders()) {
+    if (load_shaders(data)) {
         SDL_Quit();
         return 1;
     }
     
-    // Clear the screen before drawing
-	glClear(GL_COLOR_BUFFER_BIT);
-    
-    // Bind the texture to which subsequent calls refer to
-    glBindTexture(GL_TEXTURE_2D, texture);
-
-    glBegin(GL_QUADS);
-        // Top-left vertex (corner)
-        glTexCoord2i(0, 0);
-        glVertex3f(0, 0, 0);
-    
-        // Bottom-left vertex (corner)
-        glTexCoord2i(1, 0);
-        glVertex3f(w, 0, 0);
-    
-        // Bottom-right vertex (corner)
-        glTexCoord2i(1, 1);
-        glVertex3f(w, h, 0);
-    
-        // Top-right vertex (corner)
-        glTexCoord2i(0, 1);
-        glVertex3f(0, h, 0);
-    glEnd();
-	
-    SDL_GL_SwapBuffers();
+    update(data);
     
     // Wait for 3 seconds to give us a chance to see the image
     SDL_Delay(3000);
     
     // Now we can delete the OpenGL texture and close down SDL
-    glDeleteTextures(1, &texture);
+    glDeleteTextures(1, &data->texture);
     
     SDL_Quit();
     
