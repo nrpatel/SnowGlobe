@@ -275,17 +275,21 @@ static void update_display(sosg_p data)
 
 void usage(sosg_p data)
 {
-    printf("Usage: sosg [OPTION] [FILE]\n");
+    printf("Usage: sosg [OPTION] [FILE]\n\n");
+    printf("sosg is  a simple viewer for NOAA Science on a Sphere datasets\n");
+    printf("on Snow Globe, a low cost, open source, DIY spherical display.\n");
+    printf("SOS Datasets available at: http://sos.noaa.gov\n");
+    printf("Snow Globe information at: http://eclecti.cc\n\n");
     printf("    Input Data\n");
     printf("        -i     Display an image or slideshow (Default)\n");
-    printf("        -v     Display a video\n");
+    printf("        -v     Display a video\n\n");
     printf("    Snow Globe Configuration\n");
     printf("        -w     Width in pixels (%d)\n", data->w);
     printf("        -h     Height in pixels (%d)\n", data->h);
     printf("        -r     Radius in pixels (%.1f)\n", data->radius);
     printf("        -x     X offset in pixels (%.1f)\n", data->center[0]);
     printf("        -y     Y offset in pixels (%.1f)\n", data->center[1]);
-    printf("        -o     Lens offset in pixels (%.1f)\n", data->height);
+    printf("        -o     Lens offset in pixels (%.1f)\n\n", data->height);
 }
 
 int main(int argc, char *argv[])
