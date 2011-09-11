@@ -119,6 +119,7 @@ static int load_shaders(sosg_p data)
     glLinkProgram(data->program);
     glUseProgram(data->program);
     
+    // Set the uniforms the fragment shader will need
     GLint loc = glGetUniformLocation(data->program, "radius");
     glUniform1f(loc, data->radius/(float)data->h);
     loc = glGetUniformLocation(data->program, "height");
@@ -136,7 +137,6 @@ static int load_shaders(sosg_p data)
 
 static int setup(sosg_p data)
 {
-    // Slightly different SDL initialization
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         printf("Unable to initialize SDL: %s\n", SDL_GetError());
         return 1;
@@ -243,8 +243,6 @@ static void update_media(sosg_p data)
         }
     
         load_texture(data, surface);
-        data->texres[0] = surface->w;
-        data->texres[1] = surface->h;
     }
 }
 
@@ -276,7 +274,7 @@ static void update_display(sosg_p data)
     SDL_GL_SwapBuffers();
 }
 
-void usage(sosg_p data)
+static void usage(sosg_p data)
 {
     printf("Usage: sosg [OPTION] [FILE]\n\n");
     printf("sosg is  a simple viewer for NOAA Science on a Sphere datasets\n");
@@ -296,6 +294,18 @@ void usage(sosg_p data)
     printf("        -o     Lens offset in pixels (%.1f)\n\n", data->height);
 }
 
+static void cleanup(sosg_p data)
+{
+    if (data->mode == SOSG_IMAGES) {
+        sosg_image_destroy(data->images);
+    } else {
+        sosg_video_destroy(data->video);
+    }
+    // Now we can delete the OpenGL texture and close down SDL
+    glDeleteTextures(1, &data->texture);
+    SDL_Quit();
+}
+
 int main(int argc, char *argv[])
 {
     int c;
@@ -313,6 +323,7 @@ int main(int argc, char *argv[])
     data->height = 370.0;
     data->center[0] = 431.0;
     data->center[1] = 210.0;
+    data->rotation = PI;
     
     while ((c = getopt(argc, argv, "ivfw:g:r:x:y:o:")) != -1) {
         switch (c) {
@@ -351,6 +362,7 @@ int main(int argc, char *argv[])
         }
     }
     
+    // Pick the last non-option arg as the filename to use
     for (c = optind; c < argc; c++)
         filename = argv[c];
     
@@ -359,10 +371,9 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Error: Missing filename or path.\n");
         return 1;
     }
-    
-    data->rotation = PI;
 
     if (setup(data)) {
+        cleanup(data);
         return 1;
     }
     
@@ -375,7 +386,7 @@ int main(int argc, char *argv[])
     }
     
     if (load_shaders(data)) {
-        SDL_Quit();
+        cleanup(data);
         return 1;
     }
     
@@ -386,14 +397,6 @@ int main(int argc, char *argv[])
         data->rotation += data->drotation;
     }
     
-    if (data->mode == SOSG_IMAGES) {
-        sosg_image_destroy(data->images);
-    } else {
-        sosg_video_destroy(data->video);
-    }
-    // Now we can delete the OpenGL texture and close down SDL
-    glDeleteTextures(1, &data->texture);
-    SDL_Quit();
-    
+    cleanup(data);
 	return 0;
 }

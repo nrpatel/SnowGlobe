@@ -1,3 +1,5 @@
+/* Based on http://wiki.videolan.org/LibVLC_SampleCode_SDL */
+
 #include "sosg_video.h"
 #include <stdio.h>
 #include <vlc/vlc.h>
