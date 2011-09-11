@@ -1,4 +1,5 @@
 #include "sosg_image.h"
+#include <stdio.h>
 
 typedef struct sosg_image_struct {
     char *path;
@@ -43,12 +44,13 @@ SDL_Surface *sosg_image_update(sosg_image_p images)
     if (!images->buffer) {
         SDL_Surface *surface = IMG_Load(images->path);
         if (surface) {
-            SDL_PixelFormat format = {NULL, 32, 4, 0, 0, 0, 0, 0, 8, 16, 24, 
-                0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000, 0, 255};
-            images->buffer = SDL_ConvertSurface(surface, &format, SDL_SWSURFACE);
+            images->buffer = SDL_CreateRGBSurface(SDL_SWSURFACE, surface->w, surface->h, 32, 
+            0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+            SDL_BlitSurface(surface, NULL, images->buffer, NULL);
             SDL_FreeSurface(surface);
         }
     } else if (images->num_images > 1) {
+        // TODO: actually load additional images
         SDL_Surface *surface = IMG_Load(images->path);
         if (surface) {
             SDL_BlitSurface(surface, NULL, images->buffer, NULL);

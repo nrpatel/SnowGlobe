@@ -16,6 +16,7 @@
 #include "SDL_image.h"
 
 #include "sosg_image.h"
+#include "sosg_video.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +24,11 @@
 #define TICK_INTERVAL 33
 #define PI 3.141592653589793
 #define ROTATION_INTERVAL PI/(120.0*(1000.0/TICK_INTERVAL))
+
+enum sosg_mode {
+    SOSG_IMAGES,
+    SOSG_VIDEO
+};
 
 typedef struct sosg_struct {
     int w;
@@ -34,7 +40,9 @@ typedef struct sosg_struct {
     float rotation;
     float drotation;
     Uint32 time;
+    int mode;
     sosg_image_p images;
+    sosg_video_p video;
     SDL_Surface *screen;
     GLuint texture;
     GLuint program;
@@ -50,7 +58,7 @@ static void load_texture(sosg_p data, SDL_Surface *surface)
     
     // Edit the texture object's image data using the information SDL_Surface gives us
     glTexImage2D(GL_TEXTURE_2D, 0, 4, surface->w, surface->h, 0, 
-                  GL_RGBA, GL_UNSIGNED_BYTE, surface->pixels);
+                  GL_BGRA, GL_UNSIGNED_BYTE, surface->pixels);
 }
 
 static char *load_file(char *filename)
@@ -216,7 +224,13 @@ static void update_media(sosg_p data)
 {
     SDL_Surface *surface;
 
-    if ((surface = sosg_image_update(data->images))) {
+    if (data->mode == SOSG_IMAGES) {
+        surface = sosg_image_update(data->images);
+    } else {
+        surface = sosg_video_update(data->video);
+    }
+
+    if (surface) {
         // Check that the image's dimensions are a power of 2
         if ((surface->w & (surface->w - 1)) != 0 ||
             (surface->h & (surface->h - 1)) != 0) {
@@ -261,6 +275,7 @@ static void update_display(sosg_p data)
 int main(int argc, char *argv[])
 {
     char *filename = "2048.jpg";
+//    char *filename = "china_quakes_2048.mp4";
     sosg_p data = calloc(1, sizeof(sosg_t));
     
     if (!data) {
@@ -275,13 +290,19 @@ int main(int argc, char *argv[])
     data->center[0] = 431.0;
     data->center[1] = 210.0;
     data->rotation = PI;
+    data->mode = SOSG_IMAGES;
 
     if (setup(data)) {
         return 1;
     }
     
-    data->images = sosg_image_init(filename);
-    sosg_image_get_resolution(data->images, data->texres);
+    if (data->mode == SOSG_IMAGES) {
+        data->images = sosg_image_init(filename);
+        sosg_image_get_resolution(data->images, data->texres);
+    } else {
+        data->video = sosg_video_init(filename);
+        sosg_video_get_resolution(data->video, data->texres);
+    }
     
     if (load_shaders(data)) {
         SDL_Quit();
@@ -295,7 +316,11 @@ int main(int argc, char *argv[])
         data->rotation += data->drotation;
     }
     
-    sosg_image_destroy(data->images);
+    if (data->mode == SOSG_IMAGES) {
+        sosg_image_destroy(data->images);
+    } else {
+        sosg_video_destroy(data->video);
+    }
     // Now we can delete the OpenGL texture and close down SDL
     glDeleteTextures(1, &data->texture);
     SDL_Quit();

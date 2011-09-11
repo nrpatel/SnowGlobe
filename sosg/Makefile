@@ -1,7 +1,7 @@
-OBJS = sosg_image.o
+OBJS = sosg_image.o sosg_video.o
 CC = gcc
 CFLAGS = -O3 -Wall `sdl-config --cflags` -DGL_GLEXT_PROTOTYPES
-LDFLAGS = -L/usr/X11R6/lib -lGL -lGLU `sdl-config --libs` -lSDL_image
+LDFLAGS = -L/usr/X11R6/lib -lGL -lGLU `sdl-config --libs` -lSDL_image -lvlc
 
 .PHONY: all
 all: sosg
@@ -11,4 +11,4 @@ sosg: sosg.o $(OBJS)
 
 .PHONY: clean
 clean:
-	rm -f sosg_image.o sosg.o sosg
+	rm -f $(OBJS) sosg.o sosg
