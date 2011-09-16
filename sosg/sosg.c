@@ -17,6 +17,7 @@
 
 #include "sosg_image.h"
 #include "sosg_video.h"
+#include "sosg_predict.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,7 +31,8 @@
 
 enum sosg_mode {
     SOSG_IMAGES,
-    SOSG_VIDEO
+    SOSG_VIDEO,
+    SOSG_PREDICT
 };
 
 typedef struct sosg_struct {
@@ -45,9 +47,11 @@ typedef struct sosg_struct {
     float drotation[2];
     Uint32 time;
     int mode;
+    // TODO: use function pointers for different sources
     union {
         sosg_image_p images;
         sosg_video_p video;
+        sosg_predict_p predict;
     } source;
     SDL_Surface *screen;
     GLuint texture;
@@ -285,6 +289,9 @@ static void update_media(sosg_p data)
         case SOSG_VIDEO:
             surface = sosg_video_update(data->source.video);
             break;
+        case SOSG_PREDICT:
+            surface = sosg_predict_update(data->source.predict);
+            break;
     }
 
     if (surface) {
@@ -338,6 +345,7 @@ static void usage(sosg_p data)
     printf("    Input Data\n");
     printf("        -i     Display an image or slideshow (Default)\n");
     printf("        -v     Display a video\n\n");
+    printf("        -p     Satellite tracking as a PREDICT client\n");
     printf("    Snow Globe Configuration\n");
     printf("        -f     Fullscreen\n");
     printf("        -w     Display width in pixels (%d)\n", data->w);
@@ -359,6 +367,9 @@ static void cleanup(sosg_p data)
             break;
         case SOSG_VIDEO:
             sosg_video_destroy(data->source.video);
+            break;
+        case SOSG_PREDICT:
+            sosg_predict_destroy(data->source.predict);
             break;
     }
     
@@ -387,13 +398,16 @@ int main(int argc, char *argv[])
     data->rotation[0] = M_PI;
     data->rotation[1] = 0.0;
     
-    while ((c = getopt(argc, argv, "ivfw:g:r:x:y:o:")) != -1) {
+    while ((c = getopt(argc, argv, "ivpfw:g:r:x:y:o:")) != -1) {
         switch (c) {
             case 'i':
                 data->mode = SOSG_IMAGES;
                 break;
             case 'v':
                 data->mode = SOSG_VIDEO;
+                break;
+            case 'p':
+                data->mode = SOSG_PREDICT;
                 break;
             case 'f':
                 data->fullscreen = 1;
@@ -447,6 +461,10 @@ int main(int argc, char *argv[])
         case SOSG_VIDEO:
             data->source.video = sosg_video_init(filename);
             sosg_video_get_resolution(data->source.video, data->texres);
+            break;
+        case SOSG_PREDICT:
+            data->source.predict = sosg_predict_init(filename);
+            sosg_predict_get_resolution(data->source.predict, data->texres);
             break;
     }
     
