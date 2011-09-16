@@ -45,8 +45,10 @@ typedef struct sosg_struct {
     float drotation[2];
     Uint32 time;
     int mode;
-    sosg_image_p images;
-    sosg_video_p video;
+    union {
+        sosg_image_p images;
+        sosg_video_p video;
+    } source;
     SDL_Surface *screen;
     GLuint texture;
     GLuint program;
@@ -274,12 +276,15 @@ static int handle_events(sosg_p data)
 
 static void update_media(sosg_p data)
 {
-    SDL_Surface *surface;
+    SDL_Surface *surface = NULL;
 
-    if (data->mode == SOSG_IMAGES) {
-        surface = sosg_image_update(data->images);
-    } else {
-        surface = sosg_video_update(data->video);
+    switch (data->mode) {
+        case SOSG_IMAGES:
+            surface = sosg_image_update(data->source.images);
+            break;
+        case SOSG_VIDEO:
+            surface = sosg_video_update(data->source.video);
+            break;
     }
 
     if (surface) {
@@ -348,11 +353,15 @@ static void usage(sosg_p data)
 
 static void cleanup(sosg_p data)
 {
-    if (data->mode == SOSG_IMAGES) {
-        sosg_image_destroy(data->images);
-    } else {
-        sosg_video_destroy(data->video);
+    switch (data->mode) {
+        case SOSG_IMAGES:
+            sosg_image_destroy(data->source.images);
+            break;
+        case SOSG_VIDEO:
+            sosg_video_destroy(data->source.video);
+            break;
     }
+    
     // Now we can delete the OpenGL texture and close down SDL
     glDeleteTextures(1, &data->texture);
     SDL_Quit();
@@ -430,12 +439,15 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    if (data->mode == SOSG_IMAGES) {
-        data->images = sosg_image_init(filename);
-        sosg_image_get_resolution(data->images, data->texres);
-    } else {
-        data->video = sosg_video_init(filename);
-        sosg_video_get_resolution(data->video, data->texres);
+    switch (data->mode) {
+        case SOSG_IMAGES:
+            data->source.images = sosg_image_init(filename);
+            sosg_image_get_resolution(data->source.images, data->texres);
+            break;
+        case SOSG_VIDEO:
+            data->source.video = sosg_video_init(filename);
+            sosg_video_get_resolution(data->source.video, data->texres);
+            break;
     }
     
     if (load_shaders(data)) {
