@@ -2,7 +2,6 @@
 #define _SOSG_PREDICT_H_
 
 #include "SDL.h"
-#include "SDL_image.h"
 
 typedef struct sosg_predict_struct *sosg_predict_p;
 
