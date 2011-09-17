@@ -36,6 +36,8 @@ it probably requires some minor changes.
 SDL 1.2
 SDL image 1.2
 SDL net 1.2
+SDL gfx 2.0.22
+SDL ttf 2.0.10
 OpenGL 2.1
 libvlc 1.1.1
 
@@ -46,6 +48,9 @@ make
 
 LICENSE
 ==============================================================================
+
+satellite.png is CC-A from http://www.fatcow.com/free-icons/
+2048.jpg is uncopyrighted from NOAA
 
 Copyright (c) 2011, Nirav Patel <nrp@eclecti.cc>
 

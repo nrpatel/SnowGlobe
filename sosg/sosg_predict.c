@@ -2,10 +2,11 @@
 #include "SDL_net.h"
 #include "SDL_gfxPrimitives.h"
 #include "SDL_image.h"
+#include "SDL_ttf.h"
 #include <stdio.h>
 #include <string.h>
 
-#define PREDICT_CLIENT_INTERVAL 5000
+#define PREDICT_CLIENT_INTERVAL 1000
 #define PREDICT_SERVER_NAME "localhost" // TODO: support passing in the address
 #define PREDICT_SERVER_PORT 1210
 #define PREDICT_SERVER_MTU 1500
@@ -27,7 +28,6 @@ typedef struct sosg_predict_struct {
     char *path;
     SDL_Surface *buffer;
     SDL_Surface *update_surf;
-    SDL_Surface *path_surf;
     SDL_Thread *client_thread;
     SDL_mutex *update_lock;
     SDL_mutex *client_lock;
@@ -38,6 +38,8 @@ typedef struct sosg_predict_struct {
     // TODO: split the predict client thread into a separate file/struct
     sat *sats;
     int num_sats;
+    SDL_Surface *path_surf;
+    SDL_Surface *sat_icon;
     SDLNet_SocketSet sockset;
     UDPsocket sock;
     UDPpacket *packet;
@@ -197,6 +199,7 @@ static int sosg_predict_get_sats(sosg_predict_p predict)
 static int sosg_predict_update_sats(sosg_predict_p predict)
 {
     int i = 0;
+    SDL_Rect pos;
     
     for (i = 0; i < predict->num_sats; i++) {
         int px = predict->sats[i].x;
@@ -205,10 +208,9 @@ static int sosg_predict_update_sats(sosg_predict_p predict)
             // draw a line segment from the last point to the new one if the
             // satellite moved but didn't wrap around the screen
             if ((px != predict->sats[i].x || py != predict->sats[i].y)
-             && (abs(predict->sats[i].y - py) < predict->path_surf->h/4)
              && (abs(predict->sats[i].x - px) < predict->path_surf->w/4))
                 thickLineColor(predict->path_surf, px, py, predict->sats[i].x,
-                    predict->sats[i].y, 7,
+                    predict->sats[i].y, 5,
                     (predict->sats[i].visibility == 'V' ? PREDICT_VISIBLE : PREDICT_HIDDEN));
         }
     }
@@ -216,6 +218,15 @@ static int sosg_predict_update_sats(sosg_predict_p predict)
     // lock around blitting to the update_surf since it is used in the main thread
     SDL_mutexP(predict->update_lock);
     SDL_BlitSurface(predict->path_surf, NULL, predict->update_surf, NULL);
+    for (i = 0; i < predict->num_sats; i++) {
+        pos.x = predict->sats[i].x - predict->sat_icon->w/2;
+        pos.y = predict->sats[i].y - predict->sat_icon->h/2;
+        if (predict->sats[i].visibility == 'V') {
+            filledCircleColor(predict->update_surf, pos.x, pos.y, 
+                predict->sat_icon->w/2, PREDICT_VISIBLE);
+        }
+        SDL_BlitSurface(predict->sat_icon, NULL, predict->update_surf, &pos);
+    }
     predict->should_update = 1;
     SDL_mutexV(predict->update_lock);
     
@@ -290,7 +301,12 @@ sosg_predict_p sosg_predict_init(const char *path)
             SDL_BlitSurface(surface, NULL, predict->path_surf, NULL);
             SDL_FreeSurface(surface);
         } else {
-            fprintf(stderr, "Error: Could not open image at %s\n", predict->path);
+            fprintf(stderr, "Warning: Could not open image at %s\n", predict->path);
+        }
+        
+        predict->sat_icon = IMG_Load("satellite.png");
+        if (!predict->sat_icon) {
+            fprintf(stderr, "Warning: Could not open satellite.png\n");
         }
         
         predict->running = 1;

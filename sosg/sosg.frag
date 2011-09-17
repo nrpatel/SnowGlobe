@@ -29,10 +29,10 @@ void main(void)
         // A really naive filter to reduce sparkling
         color += texture2D(tex, fisheye + vec2(-texres[0], 0.0));
         color += texture2D(tex, fisheye + vec2(texres[0], 0.0));
-        color += texture2D(tex, fisheye);
         color += texture2D(tex, fisheye + vec2(0.0, texres[1]));
         color += texture2D(tex, fisheye + vec2(0.0, -texres[1]));
-        color /= 5.0;
+        color /= 8.0;
+        color += texture2D(tex, fisheye)*0.5;
 	    gl_FragColor = color;
 	}
 }

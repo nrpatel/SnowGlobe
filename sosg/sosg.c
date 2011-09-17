@@ -13,7 +13,6 @@
 
 #include "SDL.h"
 #include "SDL_opengl.h"
-#include "SDL_image.h"
 
 #include "sosg_image.h"
 #include "sosg_video.h"
