@@ -12,11 +12,12 @@
 #define PREDICT_SERVER_MTU 1500
 #define PREDICT_SERVER_TIMEOUT 5000
 
-#define PREDICT_VISIBLE 0x00FF0099
-#define PREDICT_HIDDEN 0xFF000099
+#define PREDICT_VISIBLE 0x00FF0066
+#define PREDICT_HIDDEN 0xFF000066
 
 typedef struct satellite_struct {
     char *name;
+    SDL_Surface *name_surf;
     float longitude;
     float latitude;
     char visibility;
@@ -28,6 +29,7 @@ typedef struct sosg_predict_struct {
     char *path;
     SDL_Surface *buffer;
     SDL_Surface *update_surf;
+    TTF_Font *font;
     SDL_Thread *client_thread;
     SDL_mutex *update_lock;
     SDL_mutex *client_lock;
@@ -188,8 +190,23 @@ static int sosg_predict_get_sats(sosg_predict_p predict)
         return -1;
     }
     
-    // get initial positions for all of the satellites
     for (num_sats = 0; num_sats < predict->num_sats; num_sats++) {
+        char name[10];
+        // clip the name if it is long
+        int len = strlen(predict->sats[num_sats].name);
+        strncpy(name, predict->sats[num_sats].name, 9);
+        if (len > 9) {
+            name[7] = '~';
+            name[8] = predict->sats[num_sats].name[len-1];
+        }
+        name[9] = '\0';
+        
+        // generate a surface of the name
+        SDL_Color color = {255, 255, 255};
+        predict->sats[num_sats].name_surf = TTF_RenderText_Blended(predict->font,
+            name, color);
+            
+        // get an initial position
         sosg_predict_update_sat(predict, predict->sats + num_sats);
     }
     
@@ -219,13 +236,19 @@ static int sosg_predict_update_sats(sosg_predict_p predict)
     SDL_mutexP(predict->update_lock);
     SDL_BlitSurface(predict->path_surf, NULL, predict->update_surf, NULL);
     for (i = 0; i < predict->num_sats; i++) {
+        // TODO: deal with wrapping around the world
         pos.x = predict->sats[i].x - predict->sat_icon->w/2;
         pos.y = predict->sats[i].y - predict->sat_icon->h/2;
+        // highlight visible satellites
         if (predict->sats[i].visibility == 'V') {
             filledCircleColor(predict->update_surf, pos.x, pos.y, 
                 predict->sat_icon->w/2, PREDICT_VISIBLE);
         }
         SDL_BlitSurface(predict->sat_icon, NULL, predict->update_surf, &pos);
+        // put the name next to the icon
+        pos.x += predict->sat_icon->w;
+        SDL_BlitSurface(predict->sats[i].name_surf, NULL, predict->update_surf,
+            &pos);
     }
     predict->should_update = 1;
     SDL_mutexV(predict->update_lock);
@@ -288,6 +311,9 @@ sosg_predict_p sosg_predict_init(const char *path)
         predict->client_lock = SDL_CreateMutex();
         predict->client_timeout = SDL_CreateCond();
         
+        TTF_Init();
+        predict->font = TTF_OpenFont("orbitron-black.otf", 32);
+        
         SDL_Surface *surface = IMG_Load(predict->path);
         if (surface) {
             predict->buffer = SDL_CreateRGBSurface(SDL_SWSURFACE, surface->w, 
@@ -328,6 +354,7 @@ void sosg_predict_destroy(sosg_predict_p predict)
         if (predict->client_thread) SDL_WaitThread(predict->client_thread, NULL);
     
         if (predict->path) free(predict->path);
+        if (predict->font) TTF_CloseFont(predict->font);
         if (predict->buffer) SDL_FreeSurface(predict->buffer);
         if (predict->update_surf) SDL_FreeSurface(predict->update_surf);
         if (predict->path_surf) SDL_FreeSurface(predict->path_surf);
@@ -336,10 +363,13 @@ void sosg_predict_destroy(sosg_predict_p predict)
         if (predict->client_timeout) SDL_DestroyCond(predict->client_timeout);
         for (i = 0; i < predict->num_sats; i++) {
             if (predict->sats[i].name) free(predict->sats[i].name);
+            if (predict->sats[i].name_surf) SDL_FreeSurface(predict->sats[i].name_surf);
         }
         if (predict->sats) free(predict->sats);
         
         free(predict);
+        
+        TTF_Quit();
     }
 }
 
