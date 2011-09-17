@@ -21,7 +21,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <unistd.h> // TODO: use the windows equivalent when on windows
 #include <math.h>
 
 #define TICK_INTERVAL 33
@@ -247,6 +247,7 @@ static int handle_events(sosg_p data)
                 }
                 break;
             case SDL_KEYUP:
+                // On key up, only if we had ROTATION_CONSTANT going, stop the rotation
                 switch (event.key.keysym.sym) {
                     case SDLK_LEFT:
                         if (CLOSE_ENOUGH(data->drotation[0],ROTATION_CONSTANT))
@@ -318,6 +319,7 @@ static void update_display(sosg_p data)
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, data->texture);
 
+    // Just make a full screen quad, a canvas for the shader to draw on
     glBegin(GL_QUADS);
         glTexCoord2i(0, 0);
         glVertex3f(0, 0, 0);
@@ -389,6 +391,7 @@ int main(int argc, char *argv[])
         return 1;
     }
     
+    // Defaults are for my Snow Globe (not the only Snow Globe anymore!)
     data->w = 848;
     data->h = 480;
     data->radius = 378.0;

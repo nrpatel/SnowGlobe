@@ -11,6 +11,7 @@ sosg [OPTION] [FILE]
     Input Data
         -i     Display an image or slideshow (Default)
         -v     Display a video
+        -p     Satellite tracking as a PREDICT client
 
     Snow Globe Configuration
         -f     Fullscreen
@@ -28,8 +29,13 @@ p will stop the rotation and r resets the angle.
 DEPENDENCIES
 ==============================================================================
 
+I've tried to use cross platform libraries as much as possible, but I don't
+have anything but Linux to test it on.  It may just work elsewhere, but
+it probably requires some minor changes.
+
 SDL 1.2
 SDL image 1.2
+SDL net 1.2
 OpenGL 2.1
 libvlc 1.1.1
 
