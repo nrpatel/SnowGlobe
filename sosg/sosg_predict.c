@@ -241,8 +241,8 @@ static int sosg_predict_update_sats(sosg_predict_p predict)
         pos.y = predict->sats[i].y - predict->sat_icon->h/2;
         // highlight visible satellites
         if (predict->sats[i].visibility == 'V') {
-            filledCircleColor(predict->update_surf, pos.x, pos.y, 
-                predict->sat_icon->w/2, PREDICT_VISIBLE);
+            filledCircleColor(predict->update_surf, predict->sats[i].x, 
+                predict->sats[i].y, predict->sat_icon->w/2, PREDICT_VISIBLE);
         }
         SDL_BlitSurface(predict->sat_icon, NULL, predict->update_surf, &pos);
         // put the name next to the icon
