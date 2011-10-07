@@ -23,7 +23,7 @@ module opteka() {
 }
 
 margin = 0.1;
-angle = -14.15;
+angle = -12.15;
 wall = 5;
 wall2 = 2;
 image_h = 10;
