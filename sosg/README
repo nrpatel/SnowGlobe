@@ -6,7 +6,7 @@ Snow Globe information at: http://eclecti.cc
 USAGE
 ==============================================================================
 
-sosg [OPTION] [FILE]
+sosg [OPTION] [FILES]
 
     Input Data
         -i     Display an image or slideshow (Default)
@@ -25,6 +25,7 @@ sosg [OPTION] [FILE]
 The left and right arrow keys can be used to rotate the sphere.
 Holding shift while using the arrows changes rotation speed.
 p will stop the rotation and r resets the angle.
+The up and down arrow keys go to the previous or next image in image mode.
 
 DEPENDENCIES
 ==============================================================================

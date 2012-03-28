@@ -42,9 +42,10 @@ typedef struct sosg_struct {
     float radius;
     float height;
     float center[2];
-    float rotation[2];
-    float drotation[2];
+    float rotation;
+    float drotation;
     Uint32 time;
+    int index;
     int mode;
     // TODO: use function pointers for different sources
     union {
@@ -58,6 +59,7 @@ typedef struct sosg_struct {
     GLuint vertex;
     GLuint fragment;
     GLuint lrotation;
+    GLuint ltexres;
 } sosg_t, *sosg_p;
 
 static void load_texture(sosg_p data, SDL_Surface *surface)
@@ -135,8 +137,8 @@ static int load_shaders(sosg_p data)
     glUniform2f(loc, data->center[0]/(float)data->w, data->center[1]/(float)data->h);
     loc = glGetUniformLocation(data->program, "ratio");
     glUniform1f(loc, (float)data->w/(float)data->h);
-    loc = glGetUniformLocation(data->program, "texres");
-    glUniform2f(loc, 1.0/(float)data->texres[0], 1.0/(float)data->texres[1]);
+    data->ltexres = glGetUniformLocation(data->program, "texres");
+    glUniform2f(data->ltexres, 1.0/(float)data->texres[0], 1.0/(float)data->texres[1]);
     data->lrotation = glGetUniformLocation(data->program, "rotation");
     
     return 0;
@@ -186,7 +188,7 @@ static int setup(sosg_p data)
     return 0;
 }
 
-static void timer_update(sosg_p data)
+static void update_timer(sosg_p data)
 {
     Uint32 now = SDL_GetTicks();
 
@@ -196,6 +198,21 @@ static void timer_update(sosg_p data)
 
     while (data->time <= now) {
         data->time += TICK_INTERVAL;
+    }
+}
+
+static void update_index(sosg_p data)
+{
+    switch (data->mode) {
+        case SOSG_IMAGES:
+            sosg_image_set_index(data->source.images, data->index);
+            // The resolution can change between images, so update the shader
+            sosg_image_get_resolution(data->source.images, data->texres);
+            glUniform2f(data->ltexres, 1.0/(float)data->texres[0], 1.0/(float)data->texres[1]);
+            break;
+        case SOSG_VIDEO:
+        case SOSG_PREDICT:
+            break;
     }
 }
 
@@ -211,35 +228,29 @@ static int handle_events(sosg_p data)
                         return -1;
                     case SDLK_LEFT:
                         if (event.key.keysym.mod & KMOD_SHIFT)
-                            data->drotation[0] += ROTATION_INTERVAL;
+                            data->drotation += ROTATION_INTERVAL;
                         else
-                            data->drotation[0] = ROTATION_CONSTANT;
+                            data->drotation = ROTATION_CONSTANT;
                         break;
                     case SDLK_RIGHT:
                         if (event.key.keysym.mod & KMOD_SHIFT)
-                            data->drotation[0] -= ROTATION_INTERVAL;
+                            data->drotation -= ROTATION_INTERVAL;
                         else
-                            data->drotation[0] = -ROTATION_CONSTANT;
+                            data->drotation = -ROTATION_CONSTANT;
                         break;
                     case SDLK_UP:
-                        if (event.key.keysym.mod & KMOD_SHIFT)
-                            data->drotation[1] += ROTATION_INTERVAL;
-                        else
-                            data->drotation[1] = ROTATION_CONSTANT;
+                        data->index++;
+                        update_index(data);
                         break;
                     case SDLK_DOWN:
-                        if (event.key.keysym.mod & KMOD_SHIFT)
-                            data->drotation[1] -= ROTATION_INTERVAL;
-                        else
-                            data->drotation[1] = -ROTATION_CONSTANT;
+                        data->index--;
+                        update_index(data);
                         break;
                     case SDLK_p:
-                        data->drotation[0] = 0.0;
-                        data->drotation[1] = 0.0;
+                        data->drotation = 0.0;
                         break;
                     case SDLK_r:
-                        data->rotation[0] = M_PI;
-                        data->rotation[1] = 0.0;
+                        data->rotation = M_PI;
                         break;
                     default:
                         break;
@@ -249,20 +260,12 @@ static int handle_events(sosg_p data)
                 // On key up, only if we had ROTATION_CONSTANT going, stop the rotation
                 switch (event.key.keysym.sym) {
                     case SDLK_LEFT:
-                        if (CLOSE_ENOUGH(data->drotation[0],ROTATION_CONSTANT))
-                            data->drotation[0] = 0.0;
+                        if (CLOSE_ENOUGH(data->drotation,ROTATION_CONSTANT))
+                            data->drotation = 0.0;
                         break;
                     case SDLK_RIGHT:
-                        if (CLOSE_ENOUGH(data->drotation[0],-ROTATION_CONSTANT))
-                            data->drotation[0] = 0.0;
-                        break;
-                    case SDLK_UP:
-                        if (CLOSE_ENOUGH(data->drotation[1],ROTATION_CONSTANT))
-                            data->drotation[1] = 0.0;
-                        break;
-                    case SDLK_DOWN:
-                        if (CLOSE_ENOUGH(data->drotation[1],-ROTATION_CONSTANT))
-                            data->drotation[1] = 0.0;
+                        if (CLOSE_ENOUGH(data->drotation,-ROTATION_CONSTANT))
+                            data->drotation = 0.0;
                         break;
                     default:
                         break;
@@ -309,7 +312,7 @@ static void update_media(sosg_p data)
 
 static void update_display(sosg_p data)
 {
-    glUniform2f(data->lrotation, data->rotation[0], data->rotation[1]);
+    glUniform1f(data->lrotation, data->rotation);
 
     // Clear the screen before drawing
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -338,15 +341,15 @@ static void update_display(sosg_p data)
 
 static void usage(sosg_p data)
 {
-    printf("Usage: sosg [OPTION] [FILE]\n\n");
+    printf("Usage: sosg [OPTION] [FILES]\n\n");
     printf("sosg is  a simple viewer for NOAA Science on a Sphere datasets\n");
     printf("on Snow Globe, a low cost, open source, DIY spherical display.\n");
     printf("SOS Datasets available at: http://sos.noaa.gov\n");
     printf("Snow Globe information at: http://eclecti.cc\n\n");
     printf("    Input Data\n");
     printf("        -i     Display an image or slideshow (Default)\n");
-    printf("        -v     Display a video\n\n");
-    printf("        -p     Satellite tracking as a PREDICT client\n");
+    printf("        -v     Display a video\n");
+    printf("        -p     Satellite tracking as a PREDICT client\n\n");
     printf("    Snow Globe Configuration\n");
     printf("        -f     Fullscreen\n");
     printf("        -w     Display width in pixels (%d)\n", data->w);
@@ -357,7 +360,8 @@ static void usage(sosg_p data)
     printf("        -o     Lens offset in pixels (%.1f)\n\n", data->height);
     printf("The left and right arrow keys can be used to rotate the sphere.\n");
     printf("Holding shift while using the arrows changes rotation speed.\n");
-    printf("p will stop the rotation and r resets the angle.\n\n");
+    printf("p will stop the rotation and r resets the angle.\n");
+    printf("The up and down arrow keys go to the previous or next image in image mode.\n\n");
 }
 
 static void cleanup(sosg_p data)
@@ -397,8 +401,7 @@ int main(int argc, char *argv[])
     data->height = 370.0;
     data->center[0] = 431.0;
     data->center[1] = 210.0;
-    data->rotation[0] = M_PI;
-    data->rotation[1] = 0.0;
+    data->rotation = M_PI;
     
     while ((c = getopt(argc, argv, "ivpfw:g:r:x:y:o:")) != -1) {
         switch (c) {
@@ -440,16 +443,15 @@ int main(int argc, char *argv[])
         }
     }
     
-    // Pick the last non-option arg as the filename to use
-    for (c = optind; c < argc; c++)
-        filename = argv[c];
-    
-    if (!filename) {
+    if (optind >= argc) {
         usage(data);
         fprintf(stderr, "Error: Missing filename or path.\n");
         return 1;
     }
-
+    
+    // Pick the last non-option arg as the filename to use
+    filename = argv[argc-1];
+    
     if (setup(data)) {
         cleanup(data);
         return 1;
@@ -457,7 +459,10 @@ int main(int argc, char *argv[])
     
     switch (data->mode) {
         case SOSG_IMAGES:
-            data->source.images = sosg_image_init(filename);
+            // The remaining args are assumed to be filenames.  getopt
+            // reorders the argv to put non option args at the end on all 
+            // platforms I know of, but it is not the POSIX standard to do so.
+            data->source.images = sosg_image_init(argc-optind, argv+optind);
             sosg_image_get_resolution(data->source.images, data->texres);
             break;
         case SOSG_VIDEO:
@@ -478,9 +483,8 @@ int main(int argc, char *argv[])
     while (handle_events(data) != -1) {
         update_media(data);
         update_display(data);
-        timer_update(data);
-        data->rotation[0] += data->drotation[0];
-        data->rotation[1] += data->drotation[1];
+        update_timer(data);
+        data->rotation += data->drotation;
     }
     
     cleanup(data);
