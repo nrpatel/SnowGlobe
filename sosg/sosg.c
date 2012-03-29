@@ -79,7 +79,7 @@ static char *load_file(char *filename)
     int len;
 
 	if(!(fp = fopen(filename, "r"))) {
-		fprintf(stderr, "failed to open shader: %s\n", filename);
+		fprintf(stderr, "Error: Failed to open shader: %s\n", filename);
 		return NULL;
 	}
 	
@@ -147,7 +147,7 @@ static int load_shaders(sosg_p data)
 static int setup(sosg_p data)
 {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        printf("Unable to initialize SDL: %s\n", SDL_GetError());
+        fprintf(stderr, "Error: Unable to initialize SDL: %s\n", SDL_GetError());
         return 1;
     }
     
@@ -160,7 +160,7 @@ static int setup(sosg_p data)
     int flags = SDL_OPENGL | (data->fullscreen ? SDL_FULLSCREEN : 0);
     data->screen = SDL_SetVideoMode(data->w, data->h, 32, flags);
     if (!data->screen) {
-		printf("Unable to set video mode: %s\n", SDL_GetError());
+		fprintf(stderr, "Error: Unable to set video mode: %s\n", SDL_GetError());
 		SDL_Quit();
 		return 1;
 	}
@@ -302,7 +302,7 @@ static void update_media(sosg_p data)
         // Check that the image's dimensions are a power of 2
         if ((surface->w & (surface->w - 1)) != 0 ||
             (surface->h & (surface->h - 1)) != 0) {
-            printf("warning: dimensions (%d, %d) not a power of 2\n",
+            fprintf(stderr, "Warning: dimensions (%d, %d) not a power of 2\n",
                 surface->w, surface->h);
         }
     
@@ -390,7 +390,7 @@ int main(int argc, char *argv[])
     
     sosg_p data = calloc(1, sizeof(sosg_t));
     if (!data) {
-        printf("Could not allocate data\n");
+        fprintf(stderr, "Error: Could not allocate data\n");
         return 1;
     }
     
@@ -438,7 +438,7 @@ int main(int argc, char *argv[])
             case '?':
             default:
                 usage(data);
-                fprintf(stderr, "Error: failed at option %c\n", optopt);
+                fprintf(stderr, "Error: Failed at option %c\n", optopt);
                 return 1;
         }
     }
