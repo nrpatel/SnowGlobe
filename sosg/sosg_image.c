@@ -4,6 +4,7 @@
 typedef struct sosg_image_struct {
     int num_images;
     int index;
+    int updated;
     SDL_Surface **buffer;
 } sosg_image_t;
 
@@ -16,7 +17,7 @@ sosg_image_p sosg_image_init(int num_paths, char *paths[])
         images->buffer = calloc(num_paths, sizeof(SDL_Surface *));
         
         // Load all valid images.
-        // TODO: Load dynamically, as this can be a large amount of RAM
+        // TODO: Load dynamically, as this can be a large amount of RAM and time
         for (i = 0; i < num_paths; i++) {
             SDL_Surface *surface = IMG_Load(paths[i]);
             if (surface) {
@@ -31,6 +32,7 @@ sosg_image_p sosg_image_init(int num_paths, char *paths[])
         }
         
         images->index = 0;
+        images->updated = 1;
     }
     
     return images;
@@ -60,13 +62,17 @@ void sosg_image_get_resolution(sosg_image_p images, int *resolution)
 void sosg_image_set_index(sosg_image_p images, int index)
 {
     if (images) {
+        if (index < 0) index += images->num_images;
         images->index = index % images->num_images;
+        images->updated = 1;
     }
 }
 
 SDL_Surface *sosg_image_update(sosg_image_p images)
 {
-    if (!images || !images->num_images) return NULL;
+    // Only pass a surface if we switched to a new image
+    if (!images || !images->num_images || !images->updated) return NULL;
     
+    images->updated = 0;
     return images->buffer[images->index];
 }
