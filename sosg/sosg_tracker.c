@@ -1,0 +1,194 @@
+#include "sosg_tracker.h"
+#include "SDL.h"
+#include <stdio.h>
+#include <fcntl.h>
+#include <termios.h> // TODO: More platform-specific stuff :(
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <math.h>
+
+// A NONSTANDARD FOR TRANSMISSION OF IP DATAGRAMS OVER SERIAL LINES: SLIP
+// http://tools.ietf.org/rfc/rfc1055.txt
+#define END             0xC0    /* indicates end of packet */
+#define ESC             0xDB    /* indicates byte stuffing */
+#define ESC_END         0xDC    /* ESC ESC_END means END data byte */
+#define ESC_ESC         0xDD    /* ESC ESC_ESC means ESC data byte */
+
+enum packet_type {
+    PACKET_QUAT = 0,
+    PACKET_ACC = 1,
+    PACKET_GYRO = 2,
+    PACKET_MAG = 3,
+    PACKET_COLOR = 4,
+    PACKET_BLINK = 5,
+    PACKET_MAX = 6
+};
+
+typedef struct packet_s {
+    unsigned char type;
+    union {
+        uint32_t net[4];
+        float quat[4];
+        float sensor[3];
+        unsigned char color[4];
+    } data;
+} packet_t, *packet_p;
+
+#define PACKET_MAX_SIZE (sizeof(unsigned char)+sizeof(float)*4)
+
+typedef struct sosg_tracker_struct {
+    int fd;
+    SDL_Thread *read_thread;
+    int running;
+    int mode;
+    float rotation;
+} sosg_tracker_t;
+
+static void tracker_update(sosg_tracker_p tracker, packet_p packet)
+{
+    // http://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles
+    float qq2 = packet->data.quat[2]*packet->data.quat[2];
+    float roll = atan2(2.0*(packet->data.quat[0]*packet->data.quat[1]
+                        +packet->data.quat[2]*packet->data.quat[3]),
+                        1.0-2.0*(packet->data.quat[1]*packet->data.quat[1]+qq2));
+    float pitch = asin(2.0*(packet->data.quat[0]*packet->data.quat[2]
+                        -packet->data.quat[3]*packet->data.quat[1]));
+    float yaw = atan2(2.0*(packet->data.quat[0]*packet->data.quat[3]
+                        +packet->data.quat[1]*packet->data.quat[2]),
+                        1.0-2.0*(qq2+packet->data.quat[3]*packet->data.quat[3]));
+    // use how far the yaw axis is from vertical to switch between the modes
+    float mode_angle = sqrt(roll*roll+pitch*pitch);
+    
+    // Have some hysteresis on switching between modes to make it harder to
+    // accidently trigger it
+    if ((tracker->mode == TRACKER_ROTATE) && (mode_angle > M_PI/3.0)) {
+        tracker->mode = TRACKER_SCROLL;
+    } else if ((tracker->mode == TRACKER_SCROLL) && (mode_angle < M_PI/6.0)) {
+        tracker->mode = TRACKER_ROTATE;
+    }
+    
+    // We don't really need to protect this and mode with a lock since
+    // the same rotation is used for both modes
+    tracker->rotation = yaw;
+    
+//    printf("%f %f %f %d %f\n", roll, pitch, mode_angle, tracker->mode, yaw);
+}
+
+static int tracker_parse(packet_p packet, unsigned char *buf, int len)
+{
+    int i;
+    
+    // For now, we only care about reading quaternions from the Tracker
+    if ((len == PACKET_MAX_SIZE) && (buf[0] == PACKET_QUAT)) {
+        packet->type = PACKET_QUAT;
+        for (i = 0; i < 4; i++) {
+            // Type punning the uint32_t to a float through the union.  This
+            // is not strictly legal in C99, but it is common enough that
+            // all compilers seem to allow it.
+            packet->data.net[i] = ntohl(*(uint32_t *)(buf+i*4+1));
+        }
+        
+        return 1;
+    }
+    
+    return 0;
+}
+
+static int tracker_read(void *data)
+{
+    sosg_tracker_p tracker = (sosg_tracker_p)data;
+    fd_set set;
+    struct timeval timeout;
+    int n;
+    unsigned char buf[PACKET_MAX_SIZE+1];
+    int len = 0;
+    int escaping = 0;
+    unsigned char c;
+    packet_t packet;
+    
+    FD_ZERO(&set);
+    FD_SET(tracker->fd, &set);
+    
+    while (tracker->running) {
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 100000; // 100ms
+        
+        // read is set to be non-blocking, so wait on the fd with a timeout
+        n = select(tracker->fd+1, &set, NULL, NULL, &timeout);
+        n = read(tracker->fd, &c, 1);
+        // Read one character at a time and unSLIP it into the buffer
+        if (n == 1) {
+            switch (c) {
+                case END:
+                    if (tracker_parse(&packet, buf, len)) {
+                        tracker_update(tracker, &packet);
+                    }
+                    len = 0;
+                    break;
+                case ESC:
+                    escaping = 1;
+                    break;
+                case ESC_END:
+                    if (escaping) *(buf+len) = END;
+                    else *(buf+len) = ESC_END;
+                    len++;
+                    break;
+                case ESC_ESC:
+                    if (escaping) *(buf+len) = ESC;
+                    else *(buf+len) = ESC_ESC;
+                    len++;
+                    break;
+                default:
+                    *(buf+len) = c;
+                    len++;
+                    break;
+            }
+            
+            if (c != ESC) escaping = 0;
+            // reset the buffer if it no packet was formed
+            if (len > PACKET_MAX_SIZE) len = 0;
+        }
+    }
+    
+    return 0;
+}
+
+sosg_tracker_p sosg_tracker_init(const char *device)
+{
+    sosg_tracker_p tracker = calloc(1, sizeof(sosg_tracker_t));
+    if (tracker) {
+        tracker->fd = open(device, O_RDWR | O_NOCTTY | O_NONBLOCK);
+        if (tracker->fd == -1) {
+            fprintf(stderr, "Error: failed to open Tracker at %s\n", device);
+            free(tracker);
+            return NULL;
+        }
+        
+        tracker->running = 1;
+        tracker->read_thread = SDL_CreateThread(tracker_read, tracker);
+    }
+    
+    return tracker;
+}
+
+void sosg_tracker_destroy(sosg_tracker_p tracker)
+{
+    if (tracker) {
+        tracker->running = 0;
+        if (tracker->read_thread) SDL_WaitThread(tracker->read_thread, NULL);
+        close(tracker->fd);
+        
+        free(tracker);
+    }
+}
+
+void sosg_tracker_get_rotation(sosg_tracker_p tracker, float *rotation, int *mode)
+{
+    if (tracker) {
+        if (rotation) *rotation = tracker->rotation;
+        if (mode) *mode = tracker->mode;
+    }
+}
+

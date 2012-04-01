@@ -22,6 +22,9 @@ sosg [OPTION] [FILES]
         -y     Y offset in pixels (210.0)
         -o     Lens offset in pixels (370.0)
 
+    Adjacent Reality Tracker (optional)
+        -t     Path to the Tracker device
+
 The left and right arrow keys can be used to rotate the sphere.
 Holding shift while using the arrows changes rotation speed.
 p will stop the rotation and r resets the angle.

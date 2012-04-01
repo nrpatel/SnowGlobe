@@ -17,6 +17,7 @@
 #include "sosg_image.h"
 #include "sosg_video.h"
 #include "sosg_predict.h"
+#include "sosg_tracker.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,6 +54,8 @@ typedef struct sosg_struct {
         sosg_video_p video;
         sosg_predict_p predict;
     } source;
+    sosg_tracker_p tracker;
+    int rotation_mode;
     SDL_Surface *screen;
     GLuint texture;
     GLuint program;
@@ -339,6 +342,19 @@ static void update_display(sosg_p data)
     SDL_GL_SwapBuffers();
 }
 
+static void update_input(sosg_p data)
+{
+    if (data->tracker) {
+        float rotation = data->rotation;
+        int mode = data->rotation_mode;
+        sosg_tracker_get_rotation(data->tracker, &rotation, &mode);
+        if (mode == TRACKER_ROTATE)
+            data->rotation = rotation;
+    } else {
+        data->rotation += data->drotation;
+    }
+}
+
 static void usage(sosg_p data)
 {
     printf("Usage: sosg [OPTION] [FILES]\n\n");
@@ -358,6 +374,8 @@ static void usage(sosg_p data)
     printf("        -x     X offset in pixels (%.1f)\n", data->center[0]);
     printf("        -y     Y offset in pixels (%.1f)\n", data->center[1]);
     printf("        -o     Lens offset in pixels (%.1f)\n\n", data->height);
+    printf("    Adjacent Reality Tracker (optional)\n");
+    printf("        -t     Path to the Tracker device\n\n");
     printf("The left and right arrow keys can be used to rotate the sphere.\n");
     printf("Holding shift while using the arrows changes rotation speed.\n");
     printf("p will stop the rotation and r resets the angle.\n");
@@ -403,7 +421,7 @@ int main(int argc, char *argv[])
     data->center[1] = 210.0;
     data->rotation = M_PI;
     
-    while ((c = getopt(argc, argv, "ivpfw:g:r:x:y:o:")) != -1) {
+    while ((c = getopt(argc, argv, "ivpfw:g:r:x:y:o:t:")) != -1) {
         switch (c) {
             case 'i':
                 data->mode = SOSG_IMAGES;
@@ -434,6 +452,11 @@ int main(int argc, char *argv[])
                 break;
             case 'o':
                 data->height = atof(optarg);
+                break;
+            case 't':
+                data->tracker = sosg_tracker_init(optarg);
+                if (!data->tracker)
+                    return 1;
                 break;
             case '?':
             default:
@@ -484,7 +507,7 @@ int main(int argc, char *argv[])
         update_media(data);
         update_display(data);
         update_timer(data);
-        data->rotation += data->drotation;
+        update_input(data);
     }
     
     cleanup(data);
