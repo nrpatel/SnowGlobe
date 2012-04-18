@@ -44,6 +44,8 @@ typedef struct sosg_tracker_struct {
     int running;
     int mode;
     float rotation;
+    float scroll_last;
+    float scroll_rotation;
 } sosg_tracker_t;
 
 static void tracker_update(sosg_tracker_p tracker, packet_p packet)
@@ -55,25 +57,42 @@ static void tracker_update(sosg_tracker_p tracker, packet_p packet)
                         1.0-2.0*(packet->data.quat[1]*packet->data.quat[1]+qq2));
     float pitch = asin(2.0*(packet->data.quat[0]*packet->data.quat[2]
                         -packet->data.quat[3]*packet->data.quat[1]));
-    float yaw = atan2(2.0*(packet->data.quat[0]*packet->data.quat[3]
-                        +packet->data.quat[1]*packet->data.quat[2]),
-                        1.0-2.0*(qq2+packet->data.quat[3]*packet->data.quat[3]));
     // use how far the yaw axis is from vertical to switch between the modes
     float mode_angle = sqrt(roll*roll+pitch*pitch);
+    float rotation;
     
-    // Have some hysteresis on switching between modes to make it harder to
-    // accidently trigger it
-    if ((tracker->mode == TRACKER_ROTATE) && (mode_angle > M_PI/3.0)) {
+    if ((mode_angle < M_PI/2.5) || (mode_angle > M_PI-M_PI/2.5)) {
+        rotation = atan2(2.0*(packet->data.quat[0]*packet->data.quat[3]
+                                +packet->data.quat[1]*packet->data.quat[2]),
+                                1.0-2.0*(qq2+packet->data.quat[3]*packet->data.quat[3]));
+    } else {
+        // Stop using the yaw as we approach gimbal lock
+        if (tracker->mode == TRACKER_ROTATE) rotation = tracker->rotation;
+        else rotation = tracker->scroll_last;
+    }
+    
+    // Have some hysteresis on switching between modes so we don't jitter at
+    // the border
+    if ((tracker->mode == TRACKER_ROTATE) && (mode_angle > (0.5*M_PI)/0.95)) {
         tracker->mode = TRACKER_SCROLL;
-    } else if ((tracker->mode == TRACKER_SCROLL) && (mode_angle < M_PI/6.0)) {
+        tracker->scroll_last = rotation;
+    } else if ((tracker->mode == TRACKER_SCROLL) && (mode_angle < (0.5*M_PI)*0.95)) {
         tracker->mode = TRACKER_ROTATE;
     }
     
-    // We don't really need to protect this and mode with a lock since
-    // the same rotation is used for both modes
-    tracker->rotation = yaw;
-    
-//    printf("%f %f %f %d %f\n", roll, pitch, mode_angle, tracker->mode, yaw);
+    if (tracker->mode == TRACKER_ROTATE) {
+        tracker->rotation = rotation;
+    } else {
+        float offset = rotation - tracker->scroll_last;
+        tracker->scroll_last = rotation;
+        // handle rollover naively
+        if (offset < -M_PI) offset += 2.0*M_PI;
+        else if (offset > M_PI) offset -= 2.0*M_PI;
+        tracker->scroll_rotation += offset;
+        tracker->rotation = tracker->scroll_rotation;
+    }
+
+//    printf("%f %f %f %d %f\n", roll, pitch, mode_angle, tracker->mode, tracker->rotation);
 }
 
 static int tracker_parse(packet_p packet, unsigned char *buf, int len)

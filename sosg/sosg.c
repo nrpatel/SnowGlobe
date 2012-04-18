@@ -55,7 +55,6 @@ typedef struct sosg_struct {
         sosg_predict_p predict;
     } source;
     sosg_tracker_p tracker;
-    int rotation_mode;
     SDL_Surface *screen;
     GLuint texture;
     GLuint program;
@@ -346,10 +345,14 @@ static void update_input(sosg_p data)
 {
     if (data->tracker) {
         float rotation = data->rotation;
-        int mode = data->rotation_mode;
+        int mode;
         sosg_tracker_get_rotation(data->tracker, &rotation, &mode);
         if (mode == TRACKER_ROTATE)
             data->rotation = rotation;
+        else if (mode == TRACKER_SCROLL) {
+            data->index = rotation / (M_PI/2.0);
+            update_index(data);
+        }
     } else {
         data->rotation += data->drotation;
     }
