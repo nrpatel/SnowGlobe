@@ -350,7 +350,7 @@ static void update_input(sosg_p data)
         if (mode == TRACKER_ROTATE)
             data->rotation = rotation;
         else if (mode == TRACKER_SCROLL) {
-            data->index = rotation / (M_PI/2.0);
+            data->index = rotation / (M_PI/3.0);
             update_index(data);
         }
     } else {
