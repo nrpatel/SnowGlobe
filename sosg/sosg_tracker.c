@@ -2,7 +2,6 @@
 #include "SDL.h"
 #include <stdio.h>
 #include <fcntl.h>
-#include <termios.h> // TODO: More platform-specific stuff :(
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -120,7 +119,6 @@ static int tracker_read(void *data)
     sosg_tracker_p tracker = (sosg_tracker_p)data;
     fd_set set;
     struct timeval timeout;
-    int n;
     unsigned char buf[PACKET_MAX_SIZE+1];
     int len = 0;
     int escaping = 0;
@@ -128,17 +126,16 @@ static int tracker_read(void *data)
     packet_t packet;
     
     FD_ZERO(&set);
-    FD_SET(tracker->fd, &set);
     
     while (tracker->running) {
         timeout.tv_sec = 0;
         timeout.tv_usec = 100000; // 100ms
+        FD_SET(tracker->fd, &set);
         
         // read is set to be non-blocking, so wait on the fd with a timeout
-        n = select(tracker->fd+1, &set, NULL, NULL, &timeout);
-        n = read(tracker->fd, &c, 1);
-        // Read one character at a time and unSLIP it into the buffer
-        if (n == 1) {
+        select(tracker->fd+1, &set, NULL, NULL, &timeout);
+        // Read available bytes one at a time and unSLIP them into the buffer
+        while (read(tracker->fd, &c, 1) == 1) {
             switch (c) {
                 case END:
                     if (tracker_parse(&packet, buf, len)) {
