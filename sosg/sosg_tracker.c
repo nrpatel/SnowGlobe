@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <math.h>
+#include <errno.h>
 
 // A NONSTANDARD FOR TRANSMISSION OF IP DATAGRAMS OVER SERIAL LINES: SLIP
 // http://tools.ietf.org/rfc/rfc1055.txt
@@ -31,7 +32,7 @@ typedef struct packet_s {
         uint32_t net[4];
         float quat[4];
         float sensor[3];
-        unsigned char color[4];
+        unsigned char color[3];
     } data;
 } packet_t, *packet_p;
 
@@ -47,6 +48,51 @@ typedef struct sosg_tracker_struct {
     float scroll_last;
     float scroll_rotation;
 } sosg_tracker_t;
+
+static int pack_seq(unsigned char *buf, int len, unsigned char *out)
+{
+    unsigned char *initial = out;
+
+    while (len--) {
+        switch (*buf) {
+            case END:
+                *out++ = ESC;
+                *out++ = ESC_END;
+                break;
+            case ESC:
+                *out++ = ESC;
+                *out++ = ESC_ESC;
+                break;
+            default:
+                *out++ = *buf;
+                break;
+        }
+        buf++;
+    }
+    
+    return out-initial;
+}
+
+static void tracker_set_color(sosg_tracker_p tracker, unsigned char red, unsigned char green, unsigned char blue)
+{
+    unsigned char out[PACKET_MAX_SIZE];
+    int out_len = 1; // the 1 byte type
+    
+    packet_t p;
+    p.type = PACKET_COLOR;
+    p.data.color[0] = red;
+    p.data.color[1] = green;
+    p.data.color[2] = blue;
+    
+    // pack it SLIP encoded
+    *out = p.type;
+    out_len += pack_seq(p.data.color, 3, out+out_len);
+    *(out+out_len) = END;
+    out_len++;
+    
+    if (write(tracker->fd, out, out_len) != out_len)
+        fprintf(stderr, "Warning: write incomplete: %s\n",strerror(errno));
+}
 
 static void tracker_update(sosg_tracker_p tracker, packet_p packet)
 {
@@ -76,8 +122,10 @@ static void tracker_update(sosg_tracker_p tracker, packet_p packet)
     if ((tracker->mode == TRACKER_ROTATE) && (mode_angle > (0.5*M_PI)/0.95)) {
         tracker->mode = TRACKER_SCROLL;
         tracker->scroll_last = rotation;
+        tracker_set_color(tracker, 255, 0, 0);
     } else if ((tracker->mode == TRACKER_SCROLL) && (mode_angle < (0.5*M_PI)*0.95)) {
         tracker->mode = TRACKER_ROTATE;
+        tracker_set_color(tracker, 0, 0, 255);
     }
     
     if (tracker->mode == TRACKER_ROTATE) {
