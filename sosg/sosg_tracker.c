@@ -36,6 +36,7 @@ typedef struct packet_s {
 } packet_t, *packet_p;
 
 #define PACKET_MAX_SIZE (sizeof(unsigned char)+sizeof(float)*4)
+#define PACKET_MAX_READ (4096)
 
 typedef struct sosg_tracker_struct {
     int fd;
@@ -122,49 +123,54 @@ static int tracker_read(void *data)
     unsigned char buf[PACKET_MAX_SIZE+1];
     int len = 0;
     int escaping = 0;
-    unsigned char c;
     packet_t packet;
     
     FD_ZERO(&set);
     
     while (tracker->running) {
         timeout.tv_sec = 0;
-        timeout.tv_usec = 100000; // 100ms
+        timeout.tv_usec = 10000; // 10ms
         FD_SET(tracker->fd, &set);
-        
         // read is set to be non-blocking, so wait on the fd with a timeout
         select(tracker->fd+1, &set, NULL, NULL, &timeout);
         // Read available bytes one at a time and unSLIP them into the buffer
-        while (read(tracker->fd, &c, 1) == 1) {
-            switch (c) {
-                case END:
-                    if (tracker_parse(&packet, buf, len)) {
-                        tracker_update(tracker, &packet);
-                    }
-                    len = 0;
-                    break;
-                case ESC:
-                    escaping = 1;
-                    break;
-                case ESC_END:
-                    if (escaping) *(buf+len) = END;
-                    else *(buf+len) = ESC_END;
-                    len++;
-                    break;
-                case ESC_ESC:
-                    if (escaping) *(buf+len) = ESC;
-                    else *(buf+len) = ESC_ESC;
-                    len++;
-                    break;
-                default:
-                    *(buf+len) = c;
-                    len++;
-                    break;
-            }
+        while (1) {
+            unsigned char readbuf[PACKET_MAX_READ];
+            int i;
+            int numread = read(tracker->fd, readbuf, PACKET_MAX_READ);
+            if (numread < 1) break; // there was nothing waiting for us
             
-            if (c != ESC) escaping = 0;
-            // reset the buffer if it no packet was formed
-            if (len > PACKET_MAX_SIZE) len = 0;
+            for (i = 0; i < numread; i++) {
+                switch (readbuf[i]) {
+                    case END:
+                        if (tracker_parse(&packet, buf, len)) {
+                            tracker_update(tracker, &packet);
+                        }
+                        len = 0;
+                        break;
+                    case ESC:
+                        escaping = 1;
+                        break;
+                    case ESC_END:
+                        if (escaping) *(buf+len) = END;
+                        else *(buf+len) = ESC_END;
+                        len++;
+                        break;
+                    case ESC_ESC:
+                        if (escaping) *(buf+len) = ESC;
+                        else *(buf+len) = ESC_ESC;
+                        len++;
+                        break;
+                    default:
+                        *(buf+len) = readbuf[i];
+                        len++;
+                        break;
+                }
+                
+                if (readbuf[i] != ESC) escaping = 0;
+                // reset the buffer if it no packet was formed
+                if (len > PACKET_MAX_SIZE) len = 0;
+            }
         }
     }
     
