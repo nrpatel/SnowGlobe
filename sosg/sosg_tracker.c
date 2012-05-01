@@ -173,6 +173,8 @@ static int tracker_read(void *data)
     int escaping = 0;
     packet_t packet;
     
+    tracker_set_color(tracker, 0, 0, 255);
+    
     FD_ZERO(&set);
     
     while (tracker->running) {
