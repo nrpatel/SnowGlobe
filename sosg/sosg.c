@@ -13,6 +13,7 @@
 
 #include "SDL.h"
 #include "SDL_opengl.h"
+#include "SDL_ttf.h"
 
 #include "sosg_image.h"
 #include "sosg_video.h"
@@ -56,6 +57,7 @@ typedef struct sosg_struct {
     } source;
     sosg_tracker_p tracker;
     SDL_Surface *screen;
+    SDL_Surface *text;
     GLuint texture;
     GLuint program;
     GLuint vertex;
@@ -145,6 +147,20 @@ static int load_shaders(sosg_p data)
     
     return 0;
 }   
+
+static void setup_overlay(sosg_p data, char *text)
+{
+    TTF_Init();
+    // TODO: pick a new font
+    // TODO: make the size dynamic
+    TTF_Font *font = TTF_OpenFont("orbitron-black.otf", 116);
+    
+    SDL_Color color = {255, 255, 255};
+    data->text = TTF_RenderText_Blended(font, text, color);
+    
+    TTF_CloseFont(font);
+    TTF_Quit();
+}
 
 static int setup(sosg_p data)
 {
@@ -300,6 +316,14 @@ static void update_media(sosg_p data)
     }
 
     if (surface) {
+        if (data->text) {
+            SDL_Rect pos;
+            pos.x = 0;
+            // Center the text vertically
+            pos.y = surface->h/2-data->text->h/2;
+            SDL_BlitSurface(data->text, NULL, surface, &pos);
+        }
+    
         // TODO: Support arbitrary resolution images
         // Check that the image's dimensions are a power of 2
         if ((surface->w & (surface->w - 1)) != 0 ||
@@ -368,7 +392,8 @@ static void usage(sosg_p data)
     printf("    Input Data\n");
     printf("        -i     Display an image or slideshow (Default)\n");
     printf("        -v     Display a video\n");
-    printf("        -p     Satellite tracking as a PREDICT client\n\n");
+    printf("        -p     Satellite tracking as a PREDICT client\n");
+    printf("        -s     Optional string to overlay\n\n");
     printf("    Snow Globe Configuration\n");
     printf("        -f     Fullscreen\n");
     printf("        -w     Display width in pixels (%d)\n", data->w);
@@ -401,6 +426,7 @@ static void cleanup(sosg_p data)
     
     // Now we can delete the OpenGL texture and close down SDL
     glDeleteTextures(1, &data->texture);
+    if (data->text) SDL_FreeSurface(data->text);
     SDL_Quit();
 }
 
@@ -424,7 +450,7 @@ int main(int argc, char *argv[])
     data->center[1] = 210.0;
     data->rotation = M_PI;
     
-    while ((c = getopt(argc, argv, "ivpfw:g:r:x:y:o:t:")) != -1) {
+    while ((c = getopt(argc, argv, "ivpfs:w:g:r:x:y:o:t:")) != -1) {
         switch (c) {
             case 'i':
                 data->mode = SOSG_IMAGES;
@@ -437,6 +463,9 @@ int main(int argc, char *argv[])
                 break;
             case 'f':
                 data->fullscreen = 1;
+                break;
+            case 's':
+                setup_overlay(data, optarg);
                 break;
             case 'w':
                 data->w = atoi(optarg);

@@ -12,6 +12,7 @@ sosg [OPTION] [FILES]
         -i     Display an image or slideshow (Default)
         -v     Display a video
         -p     Satellite tracking as a PREDICT client
+        -s     Optional string to overlay
 
     Snow Globe Configuration
         -f     Fullscreen
