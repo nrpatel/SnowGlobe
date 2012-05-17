@@ -13,8 +13,10 @@ typedef struct sosg_video_struct {
     SDL_Surface *surface;
     SDL_mutex *mutex;
     libvlc_instance_t *libvlc;
-    libvlc_media_t *m;
+    libvlc_media_list_t *ml;
+    libvlc_media_list_player_t *mlp;
     libvlc_media_player_t *mp;
+    int num_videos;
 } sosg_video_t;
 
 static void *lock(void *data, void **p_pixels)
@@ -40,7 +42,7 @@ static void display(void *data, void *id)
     
 }
 
-sosg_video_p sosg_video_init(const char *path)
+sosg_video_p sosg_video_init(int num_paths, char *paths[])
 {
     sosg_video_p video = calloc(1, sizeof(sosg_video_t));
     if (video) {
@@ -59,13 +61,32 @@ sosg_video_p sosg_video_init(const char *path)
             "--no-xlib", /* tell VLC to not use Xlib */
         };        
         int vlc_argc = sizeof(vlc_argv) / sizeof(*vlc_argv);
+        
         video->libvlc = libvlc_new(vlc_argc, vlc_argv);
-        video->m = libvlc_media_new_path(video->libvlc, path);
-        video->mp = libvlc_media_player_new_from_media(video->m);
+        video->mlp = libvlc_media_list_player_new(video->libvlc);
+        video->mp = libvlc_media_player_new(video->libvlc);
+        video->ml = libvlc_media_list_new(video->libvlc);
+        
+        libvlc_media_list_player_set_media_player(video->mlp, video->mp);
+        libvlc_media_list_player_set_media_list(video->mlp, video->ml);
+        
+        int i;
+        for (i = 0; i < num_paths; i++) {
+            libvlc_media_t *m = libvlc_media_new_path(video->libvlc, paths[i]);
+            if (m) {
+                video->num_videos++;
+                libvlc_media_list_add_media(video->ml, m);
+                libvlc_media_release(m);
+            }
+        }
+        
+        libvlc_playback_mode_t mode = libvlc_playback_mode_loop;
+        libvlc_media_list_player_set_playback_mode(video->mlp, mode);
         
         libvlc_video_set_callbacks(video->mp, lock, unlock, display, video);
         libvlc_video_set_format(video->mp, "RV32", VIDEOWIDTH, VIDEOHEIGHT, VIDEOWIDTH*4);
-        libvlc_media_player_play(video->mp);
+        
+        libvlc_media_list_player_play(video->mlp);
     }
 
     return video;
@@ -74,11 +95,12 @@ sosg_video_p sosg_video_init(const char *path)
 void sosg_video_destroy(sosg_video_p video)
 {
     if (video) {
-        if (video->m) libvlc_media_release(video->m);
         if (video->mp) {
             libvlc_media_player_stop(video->mp);
             libvlc_media_player_release(video->mp);
         }
+        if (video->ml) libvlc_media_list_release(video->ml);
+        if (video->mlp) libvlc_media_list_player_release(video->mlp);
         if (video->libvlc) libvlc_release(video->libvlc);
         if (video->buffer) SDL_FreeSurface(video->buffer);
         if (video->mutex) SDL_DestroyMutex(video->mutex);
@@ -91,6 +113,13 @@ void sosg_video_get_resolution(sosg_video_p video, int *resolution)
     if (resolution) {
         resolution[0] = VIDEOWIDTH;
         resolution[1] = VIDEOHEIGHT;
+    }
+}
+
+void sosg_video_set_index(sosg_video_p video, int index)
+{
+    if (video) {
+        libvlc_media_list_player_play_item_at_index(video->mlp, index%video->num_videos);
     }
 }
 

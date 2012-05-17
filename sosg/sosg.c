@@ -229,6 +229,9 @@ static void update_index(sosg_p data)
             glUniform2f(data->ltexres, 1.0/(float)data->texres[0], 1.0/(float)data->texres[1]);
             break;
         case SOSG_VIDEO:
+            sosg_video_set_index(data->source.video, data->index);
+            // Video resolution is currently fixed, but this may change in the future
+            break;
         case SOSG_PREDICT:
             break;
     }
@@ -391,7 +394,7 @@ static void usage(sosg_p data)
     printf("Snow Globe information at: http://eclecti.cc\n\n");
     printf("    Input Data\n");
     printf("        -i     Display an image or slideshow (Default)\n");
-    printf("        -v     Display a video\n");
+    printf("        -v     Display a video or videos\n");
     printf("        -p     Satellite tracking as a PREDICT client\n");
     printf("        -s     Optional string to overlay\n\n");
     printf("    Snow Globe Configuration\n");
@@ -521,7 +524,7 @@ int main(int argc, char *argv[])
             sosg_image_get_resolution(data->source.images, data->texres);
             break;
         case SOSG_VIDEO:
-            data->source.video = sosg_video_init(filename);
+            data->source.video = sosg_video_init(argc-optind, argv+optind);
             sosg_video_get_resolution(data->source.video, data->texres);
             break;
         case SOSG_PREDICT:
